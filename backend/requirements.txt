@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+langchain
+langchain-community
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+groq
+sqlalchemy
+psycopg2-binary
+chromadb
+pydantic-settings
+python-multipart

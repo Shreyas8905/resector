@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: resector-postgres
+    environment:
+      POSTGRES_USER: resector_user
+      POSTGRES_PASSWORD: resector_password
+      POSTGRES_DB: resector_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - resector-network
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: resector-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - resector-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: resector-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://resector_user:resector_password@postgres:5432/resector_db
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      - postgres
+      - chromadb
+    networks:
+      - resector-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: resector-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - resector-network
+
+networks:
+  resector-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  chroma_data:
