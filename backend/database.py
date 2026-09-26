@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from .main import settings
+from .config import settings
 
 Base = declarative_base()
 

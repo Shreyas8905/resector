@@ -1,24 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic_settings import BaseSettings
 import os
 from .database import init_db, SessionLocal, ResearchLog, get_vector_collection
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig
+from .config import settings
 from pydantic import BaseModel
 from typing import List
 
 
 
-class Settings(BaseSettings):
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://resector_user:resector_password@localhost:5432/resector_db")
-    CHROMA_HOST: str = os.getenv("CHROMA_HOST", "localhost")
-    CHROMA_PORT: str = os.getenv("CHROMA_PORT", "8000")
-
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
 app = FastAPI(title="Resector Backend")
 
 app.add_middleware(
