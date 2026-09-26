@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, List, Annotated
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+from langchain_community.chat_models import ChatGroq
 from langchain.tools import tool
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
@@ -11,21 +11,6 @@ from pydantic import BaseModel
 
 from .provider_factory import ProviderFactory, ProviderConfig
 from .database import SessionLocal, ResearchLog, get_vector_collection
-
-# --- Request/Response Models ---
-# Moved here to avoid circular import with main.py
-
-class ResearchRequest(BaseModel):
-    text: str
-    provider: str
-    api_key: str
-    tavily_api_key: Optional[str] = None
-    model_name: Optional[str] = None
-    severity: Optional[str] = "constructive" # For critique tool
-
-class ResearchResponse(BaseModel):
-    output: str
-    provider: str
 
 # --- Configuration & Constants ---
 
@@ -40,9 +25,11 @@ PERSONA_MAP = {
 # --- Tools ---
 
 @tool
-def web_search(query: str, tavily_api_key: str):
+def web_search(query: str):
     """Search the web for academic papers, recent findings, and factual data to verify claims or find gaps."""
-    tavily = TavilyClient(api_key=tavily_api_key)
+    from .config import settings
+    tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
+    # We use 'search' for general web results, but Tavily also supports 'qna'
     response = tavily.search(query=query, search_depth="advanced", max_results=5)
 
     results = []
@@ -55,40 +42,33 @@ def web_search(query: str, tavily_api_key: str):
 
 class ToolLogic:
     @staticmethod
-    async def _run_agent(config: ProviderConfig, system_prompt: str, user_input: str, tavily_api_key: Optional[str] = None):
+    async def _run_agent(config: ProviderConfig, system_prompt: str, user_input: str):
         llm = ProviderFactory.get_llm(config)
 
-        # Only provide the search tool if a key is available
-        tools = []
-        if tavily_api_key:
-            # We wrap the search tool to automatically inject the API key
-            def search_with_key(query: str):
-                return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
+        # Bind the search tool to the LLM
+        tools = [web_search]
 
-            # Re-define as a tool for the agent
-            from langchain.tools import Tool
-            tools.append(Tool(
-                name="web_search",
-                func=search_with_key,
-                description="Search the web for academic papers, recent findings, and factual data."
-            ))
-
+        # Create a ReAct agent
         agent_executor = create_react_agent(llm, tools)
 
+        # Construct the full system prompt
         full_system_message = (
             f"{system_prompt}\n\n"
             "IMPORTANT GUIDELINES:\n"
-            f"1. {'Use the web_search tool to verify facts and find recent papers.' if tools else 'Search is disabled (no API key). Use internal knowledge.'}\n"
+            "1. If you need current data or verification, use the web_search tool.\n"
             "2. You MUST provide inline citations using [1], [2], etc., corresponding to the sources you find.\n"
             "3. You MUST end your response with a 'Sources' section listing all URLs used in the citations."
         )
 
+        # Run the agent
         inputs = {"messages": [SystemMessage(content=full_system_message), HumanMessage(content=user_input)]}
         result = await agent_executor.ainvoke(inputs)
+
+        # The final response is the last message in the state
         return result["messages"][-1].content
 
     @staticmethod
-    async def sifter(config: ProviderConfig, text: str, tavily_api_key: Optional[str] = None):
+    async def sifter(config: ProviderConfig, text: str):
         system_prompt = (
             "You are an expert academic research assistant. Your goal is to sift through research abstracts "
             "and extract core components. Use the web search tool to check if the mentioned findings "
@@ -99,10 +79,11 @@ class ToolLogic:
             "3. Key Findings/Metrics\n"
             "4. Fatal Flaws or Limitations"
         )
-        return await ToolLogic._run_agent(config, system_prompt, text, tavily_api_key)
+        return await ToolLogic._run_agent(config, system_prompt, text)
 
     @staticmethod
-    async def critique(config: ProviderConfig, text: str, severity: str, tavily_api_key: Optional[str] = None):
+    async def critique(config: ProviderConfig, text: str, severity: str):
+        # severity now maps to keys in PERSONA_MAP
         persona_guidelines = PERSONA_MAP.get(severity, PERSONA_MAP["constructive_colleague"])
 
         system_prompt = (
@@ -114,10 +95,10 @@ class ToolLogic:
             "- Identification of missing control variables or biases.\n"
             "- 3 alternative angles or competing hypotheses that must be addressed."
         )
-        return await ToolLogic._run_agent(config, system_prompt, text, tavily_api_key)
+        return await ToolLogic._run_agent(config, system_prompt, text)
 
     @staticmethod
-    async def jargon(config: ProviderConfig, text: str, tavily_api_key: Optional[str] = None):
+    async def jargon(config: ProviderConfig, text: str):
         system_prompt = (
             "You are a master of science communication. Translate dense academic text into plain English. "
             "Use web search to find the most intuitive real-world analogies for the complex concepts mentioned."
@@ -125,7 +106,7 @@ class ToolLogic:
             "1. Plain-English Breakdown: An intuitive explanation.\n"
             "2. Real-World Analogy: A vivid analogy to make the concept stick."
         )
-        return await ToolLogic._run_agent(config, system_prompt, text, tavily_api_key)
+        return await ToolLogic._run_agent(config, system_prompt, text)
 
 async def log_research(tool_name: str, input_text: str, output_text: str, provider: str):
     db = SessionLocal()

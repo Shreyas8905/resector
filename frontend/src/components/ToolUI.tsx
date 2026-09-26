@@ -1,16 +1,15 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Search, FileText, AlertTriangle, Lightbulb } from 'lucide-react';
+import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-interface ToolProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+interface ToolOutputProps {
+  content: string;
+  isLoading: boolean;
 }
 
-export function ToolLayout({ title, description, icon, children }: ToolProps) {
+export function ToolLayout({ title, description, icon, children }: { title: string, description: string, icon: React.ReactNode, children: React.ReactNode }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-3 mb-2">
@@ -41,7 +40,7 @@ export function ToolInput({ label, placeholder, value, onChange }: { label: stri
   );
 }
 
-export function ToolOutput({ content, isLoading }: { content: string, isLoading: boolean }) {
+export function ToolOutput({ content, isLoading }: ToolOutputProps) {
   if (isLoading) {
     return (
       <div className="p-6 border border-zinc-800 rounded-xl bg-zinc-900/30 animate-pulse space-y-4">
@@ -56,9 +55,9 @@ export function ToolOutput({ content, isLoading }: { content: string, isLoading:
 
   return (
     <div className="p-6 border border-zinc-800 rounded-xl bg-zinc-900/50 prose prose-invert max-w-none">
-      <div className="whitespace-pre-wrap text-zinc-300 leading-relaxed">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
         {content}
-      </div>
+      </ReactMarkdown>
     </div>
   );
 }

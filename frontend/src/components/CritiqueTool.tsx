@@ -4,11 +4,19 @@ import React, { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ToolLayout, ToolInput, ToolOutput } from './ToolUI';
 
+const PERSONAS = [
+  { id: 'supportive_peer', label: 'Supportive Peer', desc: 'Encouraging & gentle' },
+  { id: 'constructive_colleague', label: 'Constructive Colleague', desc: 'Balanced & professional' },
+  { id: 'rigorous_scholar', label: 'Rigorous Scholar', desc: 'Methodology focused' },
+  { id: 'brutal_reviewer_2', label: 'Brutal Reviewer #2', desc: 'Intellectually ruthless' },
+  { id: 'devils_advocate', label: 'The Devil\'s Advocate', desc: 'Challenges hypotheses' },
+];
+
 export default function CritiqueTool() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [severity, setSeverity] = useState('constructive');
+  const [persona, setPersona] = useState('constructive_colleague');
 
   const handleProcess = async () => {
     setIsLoading(true);
@@ -22,7 +30,7 @@ export default function CritiqueTool() {
           provider: config.provider || 'groq',
           api_key: config.apiKey,
           model_name: config.modelName,
-          severity: severity,
+          severity: persona,
         }),
       });
 
@@ -39,7 +47,7 @@ export default function CritiqueTool() {
   return (
     <ToolLayout
       title="Counter-Argument & Gap Finder"
-      description="Stress-test your hypothesis with a brutal peer review."
+      description="Stress-test your hypothesis with a professional peer review."
       icon={<AlertTriangle size={20} />}
     >
       <div className="space-y-6">
@@ -50,20 +58,24 @@ export default function CritiqueTool() {
           onChange={setInput}
         />
 
-        <div className="flex items-center gap-4 p-4 bg-zinc-900 border border-zinc-800 rounded-xl">
-          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider whitespace-nowrap">Reviewer Mode</label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="1"
-            value={severity === 'constructive' ? '0' : '1'}
-            onChange={(e) => setSeverity(e.target.value === '0' ? 'constructive' : 'brutal')}
-            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
-          />
-          <span className="text-xs font-bold text-zinc-400 w-24 text-right">
-            {severity === 'constructive' ? 'Constructive' : 'Brutal'}
-          </span>
+        <div className="space-y-3">
+          <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider">Select Reviewer Persona</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {PERSONAS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPersona(p.id)}
+                className={`p-3 text-left rounded-lg border transition-all ${
+                  persona === p.id
+                    ? 'bg-white text-black border-white'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'
+                }`}
+              >
+                <p className="text-sm font-bold">{p.label}</p>
+                <p className="text-[10px] opacity-70">{p.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <button
@@ -71,7 +83,7 @@ export default function CritiqueTool() {
           disabled={isLoading || !input}
           className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Stress Testing...' : 'Stress Test'}
+          {isLoading ? 'Analyzing...' : 'Stress Test'}
         </button>
       </div>
       <ToolOutput content={output} isLoading={isLoading} />

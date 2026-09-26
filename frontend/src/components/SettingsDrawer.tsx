@@ -7,10 +7,13 @@ export default function SettingsDrawer() {
   const [config, setConfig] = useState({
     provider: 'groq',
     apiKey: '',
-    modelName: ''
+    modelName: '',
+    tavilyApiKey: ''
   });
   const [isValidating, setIsValidating] = useState(false);
   const [validationMsg, setValidationMsg] = useState('');
+  const [isTavilyValidating, setIsTavilyValidating] = useState(false);
+  const [tavilyValidationMsg, setTavilyValidationMsg] = useState('');
   const [savedConfigs, setSavedConfigs] = useState([]);
   const [configName, setConfigName] = useState('');
 
@@ -52,6 +55,31 @@ export default function SettingsDrawer() {
     }
   };
 
+  const validateTavilyKey = async () => {
+    setIsTavilyValidating(true);
+    setTavilyValidationMsg('');
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/validate-tavily`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: config.tavilyApiKey,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setTavilyValidationMsg('✅ Tavily key is valid!');
+      } else {
+        setTavilyValidationMsg(`❌ ${data.detail || 'Invalid key'}`);
+      }
+    } catch (e) {
+      setTavilyValidationMsg('❌ Connection error');
+    } finally {
+      setIsTavilyValidating(false);
+    }
+  };
+
   const saveCurrentConfig = () => {
     if (!configName) {
       alert('Please enter a name for this configuration');
@@ -69,6 +97,7 @@ export default function SettingsDrawer() {
       provider: saved.provider,
       apiKey: saved.apiKey,
       modelName: saved.modelName,
+      tavilyApiKey: saved.tavilyApiKey || '',
     });
     localStorage.setItem('resector_config', JSON.stringify(saved));
     alert(`Applied configuration: ${saved.name}`);
@@ -104,64 +133,90 @@ export default function SettingsDrawer() {
 
             <div className="space-y-8">
               <section className="space-y-6">
-                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Current Configuration</h3>
+                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">LLM Configuration</h3>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">AI Provider</label>
-                    <select
-                      value={config.provider}
-                      onChange={(e) => setConfig({...config, provider: e.target.value})}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                    >
-                      <option value="groq">Groq</option>
-                      <option value="openai">OpenAI</option>
-                      <option value="anthropic">Anthropic</option>
-                      <option value="google">Google Gemini</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-2">AI Provider</label>
+                      <select
+                        value={config.provider}
+                        onChange={(e) => setConfig({...config, provider: e.target.value})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                      >
+                        <option value="groq">Groq</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google Gemini</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-2">Model Name (Optional)</label>
+                      <input
+                        type="text"
+                        value={config.modelName}
+                        onChange={(e) => setConfig({...config, modelName: e.target.value})}
+                        placeholder="e.g. gpt-4o"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">API Key</label>
-                    <input
-                      type="password"
-                      value={config.apiKey}
-                      onChange={(e) => setConfig({...config, apiKey: e.target.value})}
-                      placeholder="sk-..."
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                    />
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">LLM API Key</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={config.apiKey}
+                        onChange={(e) => setConfig({...config, apiKey: e.target.value})}
+                        placeholder="sk-..."
+                        className="flex-1 bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                      />
+                      <button
+                        onClick={validateKey}
+                        disabled={isValidating || !config.apiKey}
+                        className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                      >
+                        {isValidating ? '...' : 'Test'}
+                      </button>
+                    </div>
+                    {validationMsg && (
+                      <p className={`text-[10px] mt-1 font-medium ${validationMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+                        {validationMsg}
+                      </p>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-400 mb-2">Model Name (Optional)</label>
-                    <input
-                      type="text"
-                      value={config.modelName}
-                      onChange={(e) => setConfig({...config, modelName: e.target.value})}
-                      placeholder="e.g. llama-3.3-70b-versatile"
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                    />
+                  <div className="pt-4 border-t border-zinc-800">
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">Tavily API Key (For Web Search)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={config.tavilyApiKey}
+                        onChange={(e) => setConfig({...config, tavilyApiKey: e.target.value})}
+                        placeholder="tvly-..."
+                        className="flex-1 bg-zinc-800 border border-zinc-700 rounded-md p-2 text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                      />
+                      <button
+                        onClick={validateTavilyKey}
+                        disabled={isTavilyValidating || !config.tavilyApiKey}
+                        className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                      >
+                        {isTavilyValidating ? '...' : 'Test'}
+                      </button>
+                    </div>
+                    {tavilyValidationMsg && (
+                      <p className={`text-[10px] mt-1 font-medium ${tavilyValidationMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+                        {tavilyValidationMsg}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={validateKey}
-                      disabled={isValidating || !config.apiKey}
-                      className="flex-1 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
-                    >
-                      {isValidating ? 'Validating...' : 'Test Connection'}
-                    </button>
-                    <button
-                      onClick={saveActiveConfig}
-                      className="flex-1 py-2 bg-white text-black text-sm font-bold rounded-md hover:bg-zinc-200 transition-colors"
-                    >
-                      Apply Now
-                    </button>
-                  </div>
-                  {validationMsg && (
-                    <p className={`text-xs text-center font-medium ${validationMsg.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
-                      {validationMsg}
-                    </p>
-                  )}
+                  <button
+                    onClick={saveActiveConfig}
+                    className="w-full py-3 bg-white text-black font-bold rounded-md hover:bg-zinc-200 transition-colors mt-4"
+                  >
+                    Apply Configuration
+                  </button>
                 </div>
               </section>
 
@@ -172,7 +227,7 @@ export default function SettingsDrawer() {
                     type="text"
                     value={configName}
                     onChange={(e) => setConfigName(e.target.value)}
-                    placeholder="Profile name (e.g. 'Work Groq')"
+                    placeholder="Profile name (e.g. 'Research Mode')"
                     className="flex-1 bg-zinc-800 border border-zinc-700 rounded-md p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
                   />
                   <button

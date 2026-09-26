@@ -23,16 +23,29 @@ class ValidateKeyRequest(BaseModel):
     api_key: str
     model_name: Optional[str] = None
 
+class ValidateTavilyRequest(BaseModel):
+    api_key: str
+
 @app.post("/validate-key")
 async def validate_key(req: ValidateKeyRequest):
     try:
         config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
         llm = ProviderFactory.get_llm(config)
-        # Simple ainvoke to test the connection
         await llm.ainvoke("Ping")
         return {"valid": True, "message": "API key is valid"}
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid API key for {req.provider}: {str(e)}")
+
+@app.post("/validate-tavily")
+async def validate_tavily(req: ValidateTavilyRequest):
+    try:
+        from tavily import TavilyClient
+        tavily = TavilyClient(api_key=req.api_key)
+        # Simple search to validate
+        tavily.search(query="test", search_depth="basic", max_results=1)
+        return {"valid": True, "message": "Tavily key is valid"}
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Tavily API key: {str(e)}")
 
 @app.get("/health")
 async def health_check():
@@ -46,7 +59,6 @@ async def process_sifter(req: ResearchRequest):
         await log_research("sifter", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
-        # Log the error to console for the developer
         print(f"ERROR in sifter: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
