@@ -3,12 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from .database import init_db, SessionLocal, ResearchLog, get_vector_collection
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
-from .provider_factory import ProviderConfig
+from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings
 from pydantic import BaseModel
-from typing import List
-
-
+from typing import List, Optional
 
 app = FastAPI(title="Resector Backend")
 
@@ -19,6 +17,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class ValidateKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+    model_name: Optional[str] = None
+
+@app.post("/validate-key")
+async def validate_key(req: ValidateKeyRequest):
+    try:
+        config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
+        llm = ProviderFactory.get_llm(config)
+        # Simple ainvoke to test the connection
+        await llm.ainvoke("Ping")
+        return {"valid": True, "message": "API key is valid"}
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid API key for {req.provider}: {str(e)}")
 
 @app.get("/health")
 async def health_check():
@@ -32,6 +46,8 @@ async def process_sifter(req: ResearchRequest):
         await log_research("sifter", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
+        # Log the error to console for the developer
+        print(f"ERROR in sifter: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/process/critique", response_model=ResearchResponse)
@@ -42,6 +58,7 @@ async def process_critique(req: ResearchRequest):
         await log_research("critique", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
+        print(f"ERROR in critique: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/process/jargon", response_model=ResearchResponse)
@@ -52,6 +69,7 @@ async def process_jargon(req: ResearchRequest):
         await log_research("jargon", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
+        print(f"ERROR in jargon: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/search")
@@ -62,7 +80,6 @@ async def search_research(request: dict):
 
     try:
         collection = get_vector_collection()
-        # Semantic search using ChromaDB
         results = collection.query(
             query_texts=[query],
             n_results=5
@@ -75,7 +92,7 @@ async def search_research(request: dict):
             formatted_results.append({
                 "content": doc,
                 "tool": meta.get("tool", "unknown"),
-                "date": "Recent" # Simplified as we don't have dates in vector metadata
+                "date": "Recent"
             })
 
         return {"results": formatted_results}

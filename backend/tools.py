@@ -78,8 +78,16 @@ class ToolLogic:
 async def log_research(tool_name: str, input_text: str, output_text: str, provider: str):
     db = SessionLocal()
     try:
+        # Ensure the default session exists before logging
+        from .database import UserSession
+        session = db.query(UserSession).filter(UserSession.session_id == "default_session").first()
+        if not session:
+            session = UserSession(session_id="default_session")
+            db.add(session)
+            db.commit()
+
         log = ResearchLog(
-            session_id="default_session", # Simplified for now
+            session_id="default_session",
             tool_name=tool_name,
             input_text=input_text,
             output_text=output_text,
@@ -95,5 +103,7 @@ async def log_research(tool_name: str, input_text: str, output_text: str, provid
             metadatas=[{"tool": tool_name, "provider": provider}],
             ids=[f"log_{log.id}"]
         )
+    except Exception as e:
+        print(f"Database logging error: {str(e)}")
     finally:
         db.close()

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import SettingsDrawer from '@/components/SettingsDrawer';
 import SifterTool from '@/components/SifterTool';
