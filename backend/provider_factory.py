@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models import ChatGroq
+from langchain_groq import ChatGroq
 from pydantic import BaseModel
 
 class ProviderConfig(BaseModel):
