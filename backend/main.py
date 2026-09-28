@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig, ProviderFactory
-from .config import settings
+from .config import settings, RateLimitError
 from .services.pdf_processor import PDFProcessor
 from .services.rag_agent import RAGAgent, get_chat_history, save_chat_message
 
@@ -251,6 +251,8 @@ async def chat_message(req: ChatRequest):
 
         return {"answer": answer}
     except Exception as e:
+        if isinstance(e, RateLimitError):
+            raise HTTPException(status_code=429, detail=str(e))
         print(f"ERROR in chat: {str(e)}")
         import traceback
         traceback.print_exc()

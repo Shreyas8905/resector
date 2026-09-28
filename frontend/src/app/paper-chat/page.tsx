@@ -176,6 +176,9 @@ export default function PaperChatPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        if (response.status === 429) {
+          throw new Error(`Rate limit exceeded. ${errorData.detail || 'Please wait a moment before trying again.'}`);
+        }
         throw new Error(errorData.detail || 'Failed to send message');
       }
 

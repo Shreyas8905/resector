@@ -5,7 +5,14 @@ from langgraph.prebuilt import create_react_agent
 from ..provider_factory import ProviderFactory, ProviderConfig
 from ..database import SessionLocal, ChatMessage, get_vector_collection
 from ..tools import web_search
+from ..config import RateLimitError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import uuid
+
+def is_rate_limit_error(exception):
+    """Checks if an exception is a rate limit error from any provider."""
+    error_msg = str(exception).lower()
+    return "rate limit" in error_msg or "429" in error_msg
 
 class RAGAgent:
     def __init__(self, config: ProviderConfig, session_id: str):
@@ -74,9 +81,33 @@ class RAGAgent:
         # 4. Prepare Input (System Prompt + History + New Message)
         messages = [SystemMessage(content=system_message)] + history + [HumanMessage(content=user_input)]
 
-        # 5. Invoke Agent
-        result = await agent_executor.ainvoke({"messages": messages})
-        return result["messages"][-1].content
+        # 5. Invoke Agent with Retry Logic
+        try:
+            return await self._invoke_agent_with_retry(agent_executor, messages)
+        except Exception as e:
+            if is_rate_limit_error(e):
+                raise RateLimitError(f"Rate limit exceeded: {str(e)}")
+            raise e
+
+    async def _invoke_agent_with_retry(self, agent_executor, messages):
+        @retry(
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type(Exception), # We filter for rate limits inside the wrapper if needed, but here we catch and let tenacity handle retries of the ainvoke call
+            reraise=True
+        )
+        async def _call():
+            return await agent_executor.ainvoke({"messages": messages})
+
+        try:
+            result = await _call()
+            return result["messages"][-1].content
+        except Exception as e:
+            if not is_rate_limit_error(e):
+                raise e
+            # If it is a rate limit error, we want tenacity to retry.
+            # The @retry decorator is already on _call.
+            raise e
 
 async def get_chat_history(session_id: str) -> List[BaseMessage]:
     """Retrieves chat history from DB and converts it to LangChain messages."""
