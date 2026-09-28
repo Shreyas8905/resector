@@ -1,57 +1,91 @@
 @import "tailwindcss";
 
-@theme {
-  --color-zinc-950: #09090b;
-  --color-zinc-900: #18181b;
-  --color-zinc-800: #27272a;
-  --color-zinc-700: #3f3f46;
-  --color-zinc-600: #52525b;
-  --color-zinc-500: #71717a;
-  --color-zinc-400: #a1a1aa;
-  --color-zinc-300: #d4d4d8;
-  --color-zinc-200: #e4e4e7;
-  --color-zinc-100: #f4f4f5;
+:root {
+  --background: #f5f7fb;
+  --foreground: #162033;
+  --surface: #ffffff;
+  --surface-muted: #eef2f8;
+  --surface-strong: #e3e9f2;
+  --border: #d7deea;
+  --border-strong: #b9c5d6;
+  --muted: #667085;
+  --subtle: #8793a6;
+  --accent: #315b9a;
+  --accent-strong: #24467a;
+  --accent-contrast: #ffffff;
+  --danger: #bd4b4b;
+  --success: #287d58;
+  --focus: #527abd;
+  --shadow: 0 18px 50px rgb(27 52 91 / 0.08);
 }
 
-:root {
-  --background: #09090b;
-  --foreground: #f4f4f5;
+:root[data-theme="dark"] {
+  --background: #0e1624;
+  --foreground: #e8edf6;
+  --surface: #151f30;
+  --surface-muted: #1b283c;
+  --surface-strong: #25344b;
+  --border: #2b3a51;
+  --border-strong: #40536f;
+  --muted: #9aa8ba;
+  --subtle: #718198;
+  --accent: #6e95d6;
+  --accent-strong: #8aace7;
+  --accent-contrast: #0c1625;
+  --danger: #e08383;
+  --success: #72c39a;
+  --focus: #86a9e2;
+  --shadow: 0 18px 50px rgb(0 0 0 / 0.22);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
-/* Custom Scrollbar for Academic Look */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 4px;
+  background: var(--border-strong);
+  border: 3px solid var(--background);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: var(--muted);
 }
 
-/* Typography for Research outputs */
 .prose {
   line-height: 1.75;
-  color: #d4d4d8;
+  color: var(--foreground);
+  max-width: 75ch;
 }
 
-.prose h1, .prose h2, .prose h3 {
-  color: #f4f4f5;
+.prose h1,
+.prose h2,
+.prose h3 {
+  color: var(--foreground);
   font-weight: 600;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
@@ -69,4 +103,71 @@ body {
 
 .prose li {
   margin-bottom: 0.5rem;
+}
+
+.prose a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose code {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9em;
+}
+
+.prose pre {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.prose pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.prose blockquote {
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  padding-left: 1rem;
+}
+
+.prose table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+}
+
+.prose th {
+  background: var(--surface-muted);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }

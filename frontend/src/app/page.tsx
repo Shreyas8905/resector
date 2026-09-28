@@ -1,78 +1,159 @@
 "use client";
 
-import React, { useState } from 'react';
-import SettingsDrawer from '@/components/SettingsDrawer';
-import SifterTool from '@/components/SifterTool';
-import CritiqueTool from '@/components/CritiqueTool';
-import JargonTool from '@/components/JargonTool';
-import ResearchHistory from '@/components/ResearchHistory';
-import PaperChatPage from '@/app/paper-chat/page';
+import React, { useState } from "react";
+import {
+  Archive,
+  FileSearch,
+  FlaskConical,
+  Lightbulb,
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import SettingsDrawer from "@/components/SettingsDrawer";
+import SifterTool from "@/components/SifterTool";
+import CritiqueTool from "@/components/CritiqueTool";
+import JargonTool from "@/components/JargonTool";
+import ResearchHistory from "@/components/ResearchHistory";
+import PaperChatPage from "@/app/paper-chat/page";
+import ThemeToggle from "@/components/ThemeToggle";
+
+type Tool = "sifter" | "critique" | "jargon" | "history" | "paperchat";
+
+const tools: { id: Tool; label: string; icon: React.ReactNode }[] = [
+  { id: "paperchat", label: "Paper Chat", icon: <MessageSquare size={17} /> },
+  { id: "sifter", label: "Sift Research", icon: <FileSearch size={17} /> },
+  { id: "critique", label: "Stress Test", icon: <FlaskConical size={17} /> },
+  { id: "jargon", label: "Simplify Text", icon: <Lightbulb size={17} /> },
+  { id: "history", label: "Research Archive", icon: <Archive size={17} /> },
+];
 
 export default function Page() {
-  const [activeTool, setActiveTool] = useState<'sifter' | 'critique' | 'jargon' | 'history' | 'paperchat' | null>(null);
+  const [activeTool, setActiveTool] = useState<Tool | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const selectTool = (tool: Tool | null) => {
+    setActiveTool(tool);
+    setIsSidebarOpen(false);
+  };
 
   return (
-    <div className="space-y-8">
-      <header className="flex justify-between items-center border-b border-zinc-800 pb-6">
-        <h1 className="text-3xl font-bold tracking-tighter cursor-pointer" onClick={() => setActiveTool(null)}>
-          Resector <span className="text-zinc-500 text-lg font-normal">🔬</span>
-        </h1>
-        <SettingsDrawer />
-      </header>
-
-      {!activeTool ? (
-        <div className="grid grid-cols-1 gap-4">
-          <div
-            onClick={() => setActiveTool('paperchat')}
-            className="p-6 border border-zinc-800 rounded-xl hover:border-zinc-600 transition-all cursor-pointer bg-zinc-900/50 border-l-4 border-l-white"
-          >
-            <h2 className="text-xl font-semibold mb-2">Paper Chat (Pro)</h2>
-            <p className="text-zinc-400 text-sm">Upload multiple research papers and have a stateful conversation across your documents.</p>
-          </div>
-          <div
-            onClick={() => setActiveTool('sifter')}
-            className="p-6 border border-zinc-800 rounded-xl hover:border-zinc-600 transition-all cursor-pointer bg-zinc-900/50"
-          >
-            <h2 className="text-xl font-semibold mb-2">PDF Abstract & Methodology Sifter</h2>
-            <p className="text-zinc-400 text-sm">Extract core research questions, methodology, and fatal flaws.</p>
-          </div>
-          <div
-            onClick={() => setActiveTool('critique')}
-            className="p-6 border border-zinc-800 rounded-xl hover:border-zinc-600 transition-all cursor-pointer bg-zinc-900/50"
-          >
-            <h2 className="text-xl font-semibold mb-2">Counter-Argument & Gap Finder</h2>
-            <p className="text-zinc-400 text-sm">Stress-test your hypothesis with a brutal peer review.</p>
-          </div>
-          <div
-            onClick={() => setActiveTool('jargon')}
-            className="p-6 border border-zinc-800 rounded-xl hover:border-zinc-600 transition-all cursor-pointer bg-zinc-900/50"
-          >
-            <h2 className="text-xl font-semibold mb-2">Jargon-to-Plain-English Research Log</h2>
-            <p className="text-zinc-400 text-sm">Simplify dense academic text into intuitive analogies.</p>
-          </div>
-          <div
-            onClick={() => setActiveTool('history')}
-            className="p-6 border border-zinc-800 rounded-xl hover:border-zinc-600 transition-all cursor-pointer bg-zinc-900/50"
-          >
-            <h2 className="text-xl font-semibold mb-2">Research Archive</h2>
-            <p className="text-zinc-400 text-sm">Semantic search across your past research snippets.</p>
-          </div>
-        </div>
-      ) : (
-        <div className={`space-y-6 ${activeTool === 'paperchat' ? 'h-[calc(100vh-120px)]' : ''}`}>
+    <div className="flex min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <aside
+        className={`${isSidebarOpen ? "w-64" : "w-0"} shrink-0 overflow-hidden border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 ${isSidebarOpen ? "max-md:w-64" : "max-md:w-0"}`}
+      >
+        <div className="flex h-full w-64 flex-col p-4">
           <button
-            onClick={() => setActiveTool(null)}
-            className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-2"
+            onClick={() => selectTool(null)}
+            className="mb-8 flex items-center gap-3 px-2 text-left"
           >
-            ← Back to Dashboard
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)]">
+              <FlaskConical size={18} />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold tracking-wide">
+                Resector
+              </span>
+              <span className="block text-xs text-[var(--muted)]">
+                Research workspace
+              </span>
+            </span>
           </button>
-          {activeTool === 'sifter' && <SifterTool />}
-          {activeTool === 'critique' && <CritiqueTool />}
-          {activeTool === 'jargon' && <JargonTool />}
-          {activeTool === 'history' && <ResearchHistory />}
-          {activeTool === 'paperchat' && <PaperChatPage />}
+
+          <nav className="space-y-1" aria-label="Research tools">
+            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--subtle)]">
+              Workspace
+            </p>
+            {tools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => selectTool(tool.id)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${activeTool === tool.id ? "bg-[var(--surface-strong)] font-medium text-[var(--foreground)]" : "text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"}`}
+              >
+                {tool.icon}
+                {tool.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-auto border-t border-[var(--border)] px-3 pt-4 text-xs text-[var(--subtle)]">
+            Local research tools
+          </div>
         </div>
-      )}
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
+              aria-label={
+                isSidebarOpen ? "Collapse navigation" : "Open navigation"
+              }
+              title={isSidebarOpen ? "Collapse navigation" : "Open navigation"}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose size={18} />
+              ) : (
+                <PanelLeftOpen size={18} />
+              )}
+            </button>
+            <div className="text-sm font-medium">
+              {activeTool
+                ? tools.find((tool) => tool.id === activeTool)?.label
+                : "Workspace"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <SettingsDrawer />
+          </div>
+        </header>
+
+        <main
+          className={`min-h-0 flex-1 ${activeTool === "paperchat" ? "overflow-hidden" : "overflow-y-auto"}`}
+        >
+          {!activeTool ? (
+            <div className="mx-auto flex min-h-full w-full max-w-5xl items-center px-6 py-12 sm:px-10">
+              <div className="w-full">
+                <div className="mb-10 max-w-xl">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+                    Research workspace
+                  </p>
+                  <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                    Choose a tool to begin.
+                  </h1>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {tools.map((tool) => (
+                    <button
+                      key={tool.id}
+                      onClick={() => selectTool(tool.id)}
+                      className="group flex min-h-32 flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition-colors hover:border-[var(--accent)]"
+                    >
+                      <span className="text-[var(--accent)]">{tool.icon}</span>
+                      <span className="text-sm font-medium group-hover:text-[var(--accent-strong)]">
+                        {tool.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className={`mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 ${activeTool === "paperchat" ? "h-full max-w-none px-0 py-0" : ""}`}
+            >
+              {activeTool === "sifter" && <SifterTool />}
+              {activeTool === "critique" && <CritiqueTool />}
+              {activeTool === "jargon" && <JargonTool />}
+              {activeTool === "history" && <ResearchHistory />}
+              {activeTool === "paperchat" && <PaperChatPage />}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

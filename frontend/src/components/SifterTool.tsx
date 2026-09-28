@@ -1,34 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { FileSearch } from 'lucide-react';
-import { ToolLayout, ToolInput, ToolOutput } from './ToolUI';
+import React, { useState } from "react";
+import { FileSearch } from "lucide-react";
+import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
 
 export default function SifterTool() {
-  const [input, setInput] = useState('');
-  const [output, setOutput] = useState('');
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleProcess = async () => {
     setIsLoading(true);
     try {
-      const config = JSON.parse(localStorage.getItem('resector_config') || '{}');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/process/sifter`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: input,
-          provider: config.provider || 'groq',
-          api_key: config.apiKey,
-          model_name: config.modelName,
-        }),
-      });
+      const config = JSON.parse(
+        localStorage.getItem("resector_config") || "{}",
+      );
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/process/sifter`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: input,
+            provider: config.provider || "groq",
+            api_key: config.apiKey,
+            model_name: config.modelName,
+          }),
+        },
+      );
 
-      if (!response.ok) throw new Error('API request failed');
+      if (!response.ok) throw new Error("API request failed");
       const data = await response.json();
       setOutput(data.output);
     } catch (e) {
-      setOutput(`Error: ${e instanceof Error ? e.message : 'Unknown error occurred'}`);
+      setOutput(
+        `Error: ${e instanceof Error ? e.message : "Unknown error occurred"}`,
+      );
     } finally {
       setIsLoading(false);
     }
@@ -49,9 +56,9 @@ export default function SifterTool() {
       <button
         onClick={handleProcess}
         disabled={isLoading || !input}
-        className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isLoading ? 'Sifting...' : 'Sift Research'}
+        {isLoading ? "Sifting..." : "Sift Research"}
       </button>
       <ToolOutput content={output} isLoading={isLoading} />
     </ToolLayout>

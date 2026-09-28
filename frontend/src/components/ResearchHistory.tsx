@@ -1,27 +1,36 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { History, Search, Trash2 } from 'lucide-react';
-import { ToolLayout, ToolOutput } from './ToolUI';
+import React, { useState } from "react";
+import { History, Search } from "lucide-react";
+import { ToolLayout } from "./ToolUI";
+
+interface HistoryResult {
+  tool?: string;
+  date?: string;
+  content: string;
+}
 
 export default function ResearchHistory() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<HistoryResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const searchHistory = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-      if (!response.ok) throw new Error('Search failed');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/search`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        },
+      );
+      if (!response.ok) throw new Error("Search failed");
       const data = await response.json();
       setResults(data.results);
     } catch (e) {
-      console.error('Search error:', e);
+      console.error("Search error:", e);
     } finally {
       setIsLoading(false);
     }
@@ -38,32 +47,39 @@ export default function ResearchHistory() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && searchHistory()}
+          onKeyDown={(e) => e.key === "Enter" && searchHistory()}
           placeholder="Search past research findings..."
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all"
+          className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--foreground)] transition-all placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
         />
         <button
           onClick={searchHistory}
           disabled={isLoading || !query}
-          className="px-6 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50"
+          className="rounded-xl bg-[var(--accent)] px-6 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
         >
-          {isLoading ? '...' : <Search size={20} />}
+          {isLoading ? "..." : <Search size={20} />}
         </button>
       </div>
 
       <div className="space-y-4">
         {results.length === 0 && !isLoading && (
-          <p className="text-center text-zinc-500 py-12">No matching research snippets found.</p>
+          <p className="py-12 text-center text-[var(--muted)]">
+            No matching research snippets found.
+          </p>
         )}
-        {results.map((res: any, idx: number) => (
-          <div key={idx} className="p-4 border border-zinc-800 rounded-xl bg-zinc-900/50 space-y-2">
+        {results.map((res, idx) => (
+          <div
+            key={idx}
+            className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]"
+          >
             <div className="flex justify-between items-center mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 px-2 py-1 bg-zinc-800 rounded">
-                {res.tool || 'unknown'}
+              <span className="rounded bg-[var(--surface-muted)] px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
+                {res.tool || "unknown"}
               </span>
-              <span className="text-[10px] text-zinc-600">{res.date}</span>
+              <span className="text-[10px] text-[var(--subtle)]">
+                {res.date}
+              </span>
             </div>
-            <div className="text-sm text-zinc-300 whitespace-pre-wrap">
+            <div className="whitespace-pre-wrap text-sm text-[var(--foreground)]">
               {res.content}
             </div>
           </div>

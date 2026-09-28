@@ -15,6 +15,7 @@ reset_db.py
 .env.development.local
 .env.test.local
 .env.production.local
+uploads/
 
 # OS files
 .DS_Store
