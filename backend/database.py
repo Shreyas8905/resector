@@ -1,19 +1,37 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Enum as SqlEnum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+import enum
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from .config import settings
 
 Base = declarative_base()
 
+class DocStatus(enum.Enum):
+    UPLOADING = "uploading"
+    PARSING = "parsing"
+    EMBEDDING = "embedding"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class MessageRole(enum.Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
 class UserSession(Base):
     __tablename__ = "user_sessions"
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, unique=True, index=True)
+    title = Column(String, default="New Research Session")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     logs = relationship("ResearchLog", back_populates="session")
+    messages = relationship("ChatMessage", back_populates="session")
+    documents = relationship("Document", back_populates="session")
 
 class ResearchLog(Base):
     __tablename__ = "research_logs"
@@ -26,6 +44,29 @@ class ResearchLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     session = relationship("UserSession", back_populates="logs")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, ForeignKey("user_sessions.session_id"))
+    role = Column(SqlEnum(MessageRole))
+    content = Column(Text)
+    citations = Column(Text) # JSON string of citations
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("UserSession", back_populates="messages")
+
+class Document(Base):
+    __tablename__ = "documents"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, ForeignKey("user_sessions.session_id"))
+    filename = Column(String)
+    file_path = Column(String)
+    status = Column(SqlEnum(DocStatus), default=DocStatus.UPLOADING)
+    progress = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("UserSession", back_populates="documents")
 
 # PostgreSQL Setup
 engine = create_engine(settings.DATABASE_URL)

@@ -65,7 +65,11 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+#In one terminal start:
+chroma run --host localhost --port 5000 --path ./chromadb_data 
+#In another terminal:
 uvicorn main:app --reload --port 8000
+#Make sure you have postgres running on 5432
 ```
 
 #### 3. Frontend Setup

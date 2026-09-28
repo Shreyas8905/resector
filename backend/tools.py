@@ -4,6 +4,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain.tools import tool
+from langchain_core.tools import Tool
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
 from tavily import TavilyClient
@@ -13,7 +14,6 @@ from .provider_factory import ProviderFactory, ProviderConfig
 from .database import SessionLocal, ResearchLog, get_vector_collection
 
 # --- Request/Response Models ---
-# Moved here to avoid circular import with main.py
 
 class ResearchRequest(BaseModel):
     text: str
@@ -66,7 +66,6 @@ class ToolLogic:
                 return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
 
             # Re-define as a tool for the agent
-            from langchain.tools import Tool
             tools.append(Tool(
                 name="web_search",
                 func=search_with_key,
