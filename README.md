@@ -1,100 +1,75 @@
-# Resector 🔬
-**Your Local-First, Agentic Research Companion**
+# Resector
 
-Resector is a high-performance research utility designed for academics, scientists, and independent researchers. It combines advanced AI agent loops with local data sovereignty to help you sift through literature, stress-test hypotheses, and simplify complex jargon—all while maintaining total privacy.
+Resector is a professional-grade, local-first research companion designed to augment the academic research workflow. By integrating agentic retrieval-augmented generation (RAG), multi-document state management, and real-time web intelligence, Resector transforms static PDF libraries into an interactive, queryable knowledge base.
 
----
+The system is engineered to handle the rigor of academic inquiry, providing tools for methodology extraction, hypothesis stress-testing through adversarial personas, and semantic synthesis across diverse document sets.
 
-## ✨ Core Features
+## System Architecture
 
-### 1. PDF Abstract & Methodology Sifter
-Transforms dense abstracts into structured insights.
-- **What it does**: Extracts Core Research Questions, Methodology/Sample Size, Key Findings, and Fatal Flaws.
-- **Agent Power**: Uses real-time web search to check if findings have been superseded or if the methodology is standard in the field.
+Resector employs a decoupled architecture designed for scalability and data sovereignty. The system separates the orchestration layer from the data persistence layer, ensuring that sensitive research data remains local while leveraging state-of-the-art LLM providers.
 
-### 2. Counter-Argument & Gap Finder
-A brutal peer-review simulator to stress-test your research.
-- **Persona Spectrum**: Choose from 5 personas, from a **Supportive Peer** to the infamous **Brutal Reviewer #2** or **The Devil's Advocate**.
-- **Agent Power**: Actively searches the web for competing theories and counter-arguments to expose logical gaps in your hypothesis.
+### High-Level Design
 
-### 3. Jargon-to-Plain-English Research Log
-Translates "Academic-speak" into intuitive understanding.
-- **What it does**: Breaks down complex terminology into plain English and provides a vivid real-world analogy.
-- **Agent Power**: Searches for the best analogies used in science communication to make the concept stick.
+```mermaid
 
-### 4. Research Archive & Semantic Search
-Your research history is not just a list—it's a vector space.
-- **Local Vector DB**: Every result is embedded into ChromaDB.
-- **Semantic Retrieval**: Search your history using natural language (e.g., "that paper about transformer attention") to find relevant past insights.
+graph TD
+    User[Researcher] --> Frontend[Next.js Frontend]
+    Frontend --> API[FastAPI Orchestrator]
+    API --> Agent[LangGraph RAG Agent]
+    
+    subgraph "Agentic Loop"
+        Agent --> ToolDecision{Tool Decision}
+        ToolDecision --> LocalRAG[Local Vector Search]
+        ToolDecision --> WebSearch[Tavily Web Search]
+        LocalRAG --> Synthesis[Context Synthesis]
+        WebSearch --> Synthesis
+        Synthesis --> Agent
+    end
+    
+    subgraph "Persistence Layer"
+        LocalRAG --> ChromaDB[(ChromaDB Vector Store)]
+        API --> Postgres[(PostgreSQL Relational DB)]
+    end
+    
+    Agent --> LLM[LLM Provider Factory]
+    LLM --> Providers[Groq / OpenAI / Anthropic / Gemini]
 
----
-
-## 🛠 Tech Stack
-
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, `react-markdown`.
-- **Backend**: FastAPI (Python), LangChain, LangGraph.
-- **Agent Engine**: ReAct agent loop with **Tavily Search API** for real-time web access.
-- **Database**: 
-  - **PostgreSQL**: Relational history and session logs.
-  - **ChromaDB**: Local vector storage for semantic search.
-
----
-
-## 🚀 Getting Started
-
-### Option A: Docker (The Easy Way)
-```bash
-docker-compose up --build
-```
-*This spins up PostgreSQL, ChromaDB, the FastAPI backend, and the Next.js frontend automatically.*
-
-### Option B: Local Development (The Manual Way)
-
-#### 1. Infrastructure Setup
-You must have **PostgreSQL** and **ChromaDB** running locally.
-
-**Spin up ChromaDB**:
-```bash
-# If using Docker for just the DB
-docker run -p 5000:8000 chromadb/chroma
 ```
 
-#### 2. Backend Setup
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-#In one terminal start:
-chroma run --host localhost --port 5000 --path ./chromadb_data 
-#In another terminal:
-uvicorn main:app --reload --port 8000
-#Make sure you have postgres running on 5432
-```
+### Engineering Core Components
 
-#### 3. Frontend Setup
-```bash
-cd frontend
-npm install
-npm run dev
-```
+#### 1. Agentic RAG Engine
+Unlike traditional RAG which relies on simple similarity searches, Resector implements a ReAct (Reason + Act) agent loop via LangGraph. The agent iteratively decides whether to query the local document store, search the web for current citations, or synthesize a final answer based on the gathered context.
 
----
+#### 2. Hybrid Persistence Strategy
+The system utilizes a dual-database approach to optimize for different data access patterns:
+- **Relational (PostgreSQL)**: Manages session state, conversation threading, and document metadata. This ensures strict consistency for research logs and user sessions.
+- **Semantic (ChromaDB)**: Stores high-dimensional embeddings of PDF chunks. This enables natural language retrieval across thousands of pages of technical text.
 
-## 🔑 Configuration
+#### 3. Provider Factory Pattern
+To avoid vendor lock-in, Resector implements a Provider Factory. This abstraction layer allows the system to hot-swap LLM providers (e.g., moving from Groq for speed to Claude for reasoning depth) without modifying the core agentic logic.
 
-Create a `.env` file in the `backend/` directory:
+#### 4. Resilient Execution Layer
+The system incorporates industrial-grade error handling to manage the volatility of LLM APIs:
+- **Exponential Backoff**: Implements a retry mechanism with jitter to handle `429 Too Many Requests` errors, ensuring stability during high-token-usage tasks.
+- **Schema Synchronization**: An automated startup sequence ensures database migrations are applied without data loss during development.
 
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/resector_db
-CHROMA_HOST=localhost
-CHROMA_PORT=5000
-TAVILY_API_KEY=your_tavily_key_here
-```
+## Key Research Modules
 
-*Note: You can also set and validate your LLM and Tavily keys directly in the app's **Settings** drawer.*
+### Professional Paper Chat
+A stateful workspace where researchers can upload multiple PDFs. The system indexes these documents in real-time, allowing for cross-document synthesis and citations that reference specific document IDs.
 
----
+### Methodology Sifter
+An extraction pipeline that analyzes abstracts and methodology sections to identify core research questions, sample sizes, and potential fatal flaws in a study's design.
 
-## 🛡 Privacy & Integrity
-Resector is built with a **Local-First** philosophy. Your research logs, API keys, and vector embeddings never leave your machine (unless sent to the LLM provider of your choice).
+### Adversarial Critique
+A persona-driven stress-test tool. By shifting the agent's persona from "Supportive Peer" to "Devil's Advocate," researchers can expose gaps in their own hypotheses before submitting to peer review.
+
+### Jargon Simplifier
+A translation layer that maps dense academic terminology to intuitive analogies, facilitating faster onboarding into new research domains.
+
+## Setup and Installation
+
+For detailed instructions on deploying Resector, including Docker orchestration and manual environment configuration, please refer to the setup guide:
+
+[SETUP.md](./SETUP.md)
