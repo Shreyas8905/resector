@@ -1,65 +1,99 @@
-# Resector: Local-First Research Companion
+# Resector: Local-First Academic Research Companion
 
-Resector is an advanced, local-first research assistant designed to transform how researchers interact with academic papers and the web. By combining a decoupled Frontend/Backend architecture with agentic RAG (Retrieval-Augmented Generation), Resector enables users to conduct deep-dive research with high precision, inline citations, and customizable AI personas.
-
-## 🚀 Key Features
-
-- **Agentic Research Loop**: Unlike standard chatbots, Resector uses a ReAct agent pattern. It doesn't just answer; it decides when to search the web, when to critique its own findings, and when to refine its search queries.
-- **Chat with Paper**: A specialized RAG pipeline that allows users to upload academic PDFs and engage in a contextual dialogue with the document.
-- **Persona Spectrum (Critique Tool)**: A unique 5-stage persona map that allows the AI to shift its critical tone—from supportive feedback to rigorous academic critique.
-- **Semantic Memory**: Dual-persistence storage using PostgreSQL for relational logs and ChromaDB for vector-based semantic retrieval, allowing users to "remember" past findings across different sessions.
-- **Internet-Integrated Search**: Built-in integration with Tavily Search to ensure research is grounded in real-time web data.
-- **High-Contrast Academic UI**: A Next.js frontend designed for readability and focus, featuring a high-contrast theme and markdown rendering for academic output.
+Resector is an advanced, local-first research workstation engineered to transform how researchers interact with scientific literature, citations, and the web. By combining a decoupled Frontend/Backend architecture with agentic RAG (Retrieval-Augmented Generation), recursive citation graph modeling, and customizable AI personas, Resector enables researchers to conduct rigorous deep-dive investigations with high precision, grounded inline citations, and visual literature cartography.
 
 ---
 
-## 🏗️ Architecture
+## 🚀 Key Features
 
-Resector follows a decoupled architecture to ensure scalability and separation of concerns.
+### 1. 50-Paper Recursive Citation Network & Community Graph
+- **Multi-Source Academic Traversal**: Queries OpenAlex (250M+ scholarly works) and Semantic Scholar API with ArXiv/DOI matching and Tavily scholarly web fallback to reliably aggregate 50–60 connected peer-reviewed papers.
+- **Bibliographic Coupling & Cross-Citations**: Detects shared references (Jaccard similarity $\ge 0.035$) and cross-citations across all candidate works, generating 800+ interconnected chain links rather than isolated star graphs.
+- **Louvain Modularity Clustering**: Automatically partitions citation networks into 4–8 distinct thematic communities, assigning distinct vibrant color palettes (Orange, Green, Purple, Blue, Red, Brown, Yellow, Teal).
+- **Proximity Distance & Importance Metrics**: Root paper pinning, multi-hop shortest path graph distances, and normalized citation/reference importance scores.
+- **Interactive D3 Physics Canvas**: Real-time `Titles` density threshold slider, `Importance` size scaling with live D3 reheat simulation, layout presets (`Force Atlas`, `Clusters`, `Years`), and `Export GEXF` for Gephi analysis.
 
-### Data Flow
-`Frontend (Next.js)` $\rightarrow$ `Backend (FastAPI)` $\rightarrow$ `LangGraph Agent Loop` $\rightarrow$ `Tavily Search/LLM API`
+### 2. Immersive Paper Chat & Grounded RAG Agent
+- **Multi-Document PDF Indexing**: Upload and batch process multiple scientific PDFs with PyMuPDF text chunking, local vector embedding, and session-scoped ChromaDB collections.
+- **LangGraph ReAct Agent Loop**: Iteratively reasons whether to query local paper vectors or search the live web via Tavily for contemporary verification.
+- **Complete Conversation Lifecycle**: Create named research sessions, delete entire sessions with cascading file cleanup, clear chat history, delete single messages, copy markdown outputs, and filter session history.
+- **Starter Analytical Prompts**: Instant 1-click queries for core finding synthesis, methodological critiques, metric comparisons, and future work extraction.
+- **Isolated Viewport Layout**: Pinned header and footer input bar with independently scrolling conversation feed.
 
-### System Components
-1. **Frontend**: A modern React application handling the user interface, API key management (via localStorage), and academic rendering.
-2. **Backend**: A FastAPI orchestrator that manages the agentic logic and interfaces with the LLM providers.
-3. **Vector Store**: ChromaDB stores embeddings of research logs and uploaded papers for semantic search.
-4. **Relational Store**: PostgreSQL manages structured logs and user-related data.
+### 3. Core Academic Analysis Tools
+- **Methodology Sifter**: Structured extraction pipeline extracting core research questions, sample sizes, experimental setups, and fatal methodological flaws.
+- **Persona Spectrum (Critique Tool)**: 5-stage critical tone spectrum—from Supportive Peer to Hostile Reviewer 2.
+- **Jargon Simplifier**: Layered technical translation bridging dense mathematical and scientific terminology to intuitive analogies.
+- **Research Archive**: Chronological search, tag filtering, and inspection of past analytical queries.
+
+---
+
+## 🏗️ Architecture & Data Flow
+
+```mermaid
+graph TD
+    User[Researcher] --> Frontend[Next.js 15 + React 19 Frontend]
+    Frontend --> API[FastAPI Orchestrator]
+    
+    subgraph "Paper Chat & RAG Engine"
+        API --> RAG[LangGraph ReAct Agent]
+        RAG --> ChromaDB[(ChromaDB Vector Store)]
+        RAG --> Tavily[Tavily Search API]
+        RAG --> LLMs[Groq / OpenAI / Anthropic / Gemini]
+    end
+
+    subgraph "Literature Citation Graph Engine"
+        API --> GraphService[Graph Service]
+        GraphService --> OpenAlex[OpenAlex API]
+        GraphService --> S2[Semantic Scholar API]
+        GraphService --> NetworkX[NetworkX Graph Analytics]
+        NetworkX --> Louvain[Louvain Modularity & Distance]
+    end
+
+    subgraph "Persistence Layer"
+        API --> Postgres[(PostgreSQL Relational DB)]
+        Postgres --> UserSessions[User Sessions & Messages]
+        Postgres --> GraphSnapshots[Graph Snapshots]
+        Postgres --> Documents[Document Metadata]
+    end
+```
 
 ---
 
 ## 📂 File Directory & Purpose
 
 ### 📁 Root
-- `docker-compose.yml`: Orchestrates the deployment of the Frontend, Backend, and Database services.
-- `CLAUDE.md`: Development guidelines and quick-start commands for AI assistants.
-- `PROJECT.md`: High-level project overview and architecture.
+- `docker-compose.yml`: Multi-container orchestration (FastAPI backend, PostgreSQL, ChromaDB, Next.js frontend).
+- `CLAUDE.md`: AI assistant operational manual and quick commands.
+- `PROJECT.md`: Comprehensive project blueprint, architecture, and feature index.
+- `README.md`: Public-facing engineering documentation and architecture diagrams.
+- `SETUP.md`: Detailed environment configuration and onboarding instructions.
 
 ### 📁 backend/
-- `main.py`: The entry point of the FastAPI application; defines API endpoints.
-- `config.py`: Centralized environment variable and configuration management.
-- `database.py`: Handles connections and operations for PostgreSQL and ChromaDB.
-- `provider_factory.py`: A factory pattern implementation for swapping LLM providers (Groq, OpenAI, Anthropic, Gemini).
-- `tools.py`: Defines the agentic tools (Sifter, Critique, Jargon) that the LLM can invoke.
-- `requirements.txt`: Python dependencies.
+- `main.py`: FastAPI server endpoints for chat sessions, message CRUD, PDF uploads, research tools, and graph snapshots (`/api/graph/generate`, `/api/graph/session`, `/chat/sessions`).
+- `config.py`: Centralized environment configurations, database URLs, and rate limit error handlers.
+- `database.py`: SQLAlchemy database models (`UserSession`, `ChatMessage`, `Document`, `ResearchLog`, `GraphSnapshot`) and ChromaDB vector client.
+- `provider_factory.py`: Pluggable LLM factory supporting Groq, OpenAI, Anthropic, and Google Gemini.
+- `tools.py`: Academic research tools (Sifter, Critique, Jargon) and Tavily web search integration.
+- `requirements.txt`: Python package specifications.
 - **📁 services/**
-    - `rag_agent.py`: The core logic for the agentic RAG loop and LangGraph orchestration.
-    - `pdf_processor.py`: Handles PDF parsing, text extraction, and embedding generation.
+  - `graph_service.py`: High-throughput citation engine (OpenAlex, Semantic Scholar, NetworkX, Louvain clustering, Bibliographic coupling).
+  - `rag_agent.py`: LangGraph ReAct agent loop for contextual paper Q&A and web retrieval.
+  - `pdf_processor.py`: PDF extraction, semantic chunking, and ChromaDB vector indexing.
 
 ### 📁 frontend/
-- `package.json`: Node.js dependencies and scripts.
-- `next.config.ts`: Configuration for the Next.js framework.
-- **📁 src/**
-    - **📁 app/**
-        - `page.tsx`: The main research dashboard.
-        - `layout.tsx`: Root layout and global providers.
-        - `globals.css`: Global styles and high-contrast theme definitions.
-        - **📁 paper-chat/**: Contains the specialized interface for chatting with uploaded PDFs.
-    - **📁 components/**
-        - `SifterTool.tsx`: UI for the Sifter (information filtering) tool.
-        - `CritiqueTool.tsx`: UI for the Persona-based critique tool.
-        - `JargonTool.tsx`: UI for simplifying complex academic jargon.
-        - `ResearchHistory.tsx`: Interface for browsing past research logs.
-        - `SettingsDrawer.tsx`: Side-panel for managing API keys and preferences.
-        - `ToolUI.tsx`: Generic wrapper for agent tool interactions.
-        - `ThemeToggle.tsx`: Switch between light and high-contrast dark themes.
+- `package.json`: Next.js 15, React 19, Tailwind CSS, Lucide icons, and `react-force-graph-2d`.
+- **📁 src/app/**
+  - `page.tsx`: Main workspace container with fixed viewport, sidebar switcher, and theme provider.
+  - `layout.tsx`: Root HTML layout.
+  - `globals.css`: Academic high-contrast design system and CSS variables.
+  - **📁 paper-chat/**
+    - `page.tsx`: Immersive paper chat interface, starter prompt cards, session deletion/management, and 50-Paper network integration.
+- **📁 src/components/**
+  - `PaperGraphView.tsx`: Interactive 50-Paper citation graph canvas with D3 physics reheat, Louvain community clusters, titles/importance sliders, and GEXF export.
+  - `SifterTool.tsx`: UI for structured research methodology extraction.
+  - `CritiqueTool.tsx`: UI for the 5-stage Persona Spectrum academic critique.
+  - `JargonTool.tsx`: UI for technical jargon translation.
+  - `ResearchHistory.tsx`: Historical query archive and inspector.
+  - `SettingsDrawer.tsx`: User API key vault (LLM providers, Tavily, Semantic Scholar).
+  - `ThemeToggle.tsx`: Synchronized Dark/Light mode switcher.
