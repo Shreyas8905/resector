@@ -7,6 +7,7 @@ interface Config {
   apiKey: string;
   modelName: string;
   tavilyApiKey: string;
+  s2ApiKey?: string;
 }
 
 interface SavedConfig extends Config {
@@ -27,8 +28,10 @@ export default function SettingsDrawer() {
           apiKey: "",
           modelName: "",
           tavilyApiKey: "",
+          s2ApiKey: "",
         };
   });
+
   const [isValidating, setIsValidating] = useState(false);
   const [validationMsg, setValidationMsg] = useState("");
   const [isTavilyValidating, setIsTavilyValidating] = useState(false);
@@ -118,10 +121,12 @@ export default function SettingsDrawer() {
       apiKey: saved.apiKey,
       modelName: saved.modelName,
       tavilyApiKey: saved.tavilyApiKey || "",
+      s2ApiKey: saved.s2ApiKey || "",
     });
     localStorage.setItem("resector_config", JSON.stringify(saved));
     alert(`Applied configuration: ${saved.name}`);
   };
+
 
   const deleteConfig = (index: number) => {
     const newSaved = savedConfigs.filter((_, i) => i !== index);
@@ -259,12 +264,31 @@ export default function SettingsDrawer() {
                     )}
                   </div>
 
+                  <div className="border-t border-[var(--border)] pt-4">
+                    <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
+                      Semantic Scholar API Key (Optional)
+                    </label>
+                    <input
+                      type="password"
+                      value={config.s2ApiKey || ""}
+                      onChange={(e) =>
+                        setConfig({ ...config, s2ApiKey: e.target.value })
+                      }
+                      placeholder="Optional S2 API key for higher rate limits"
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                    <p className="mt-1 text-[10px] text-[var(--subtle)]">
+                      Leaves empty for default unauthenticated public access.
+                    </p>
+                  </div>
+
                   <button
                     onClick={saveActiveConfig}
                     className="mt-4 w-full rounded-lg bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)]"
                   >
                     Apply Configuration
                   </button>
+
                 </div>
               </section>
 

@@ -18,3 +18,5 @@ tavily-python
 langgraph
 pymupdf
 sentence-transformers
+networkx
+httpx

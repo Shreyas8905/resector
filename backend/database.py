@@ -68,6 +68,17 @@ class Document(Base):
 
     session = relationship("UserSession", back_populates="documents")
 
+class GraphSnapshot(Base):
+    __tablename__ = "graph_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    root_paper_id = Column(String, nullable=True)
+    nodes = Column(Text)  # JSON-encoded nodes
+    edges = Column(Text)  # JSON-encoded edges
+    metadata_json = Column(Text, nullable=True)  # JSON-encoded metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # PostgreSQL Setup
 engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -76,10 +87,18 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 # ChromaDB Setup
-chroma_client = chromadb.HttpClient(
-    host=settings.CHROMA_HOST,
-    port=int(settings.CHROMA_PORT)
-)
+_chroma_client = None
+
+def get_chroma_client():
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.HttpClient(
+            host=settings.CHROMA_HOST,
+            port=int(settings.CHROMA_PORT)
+        )
+    return _chroma_client
 
 def get_vector_collection(collection_name="resector_research"):
-    return chroma_client.get_or_create_collection(name=collection_name)
+    client = get_chroma_client()
+    return client.get_or_create_collection(name=collection_name)
+

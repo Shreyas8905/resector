@@ -6,12 +6,14 @@ import sqlalchemy
 from typing import List, Optional
 from pydantic import BaseModel
 
-from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage
+from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings, RateLimitError
 from .services.pdf_processor import PDFProcessor
 from .services.rag_agent import RAGAgent, get_chat_history, save_chat_message
+from .services.graph_service import GraphService
+import json
 
 app = FastAPI(title="Resector Backend")
 
@@ -43,6 +45,18 @@ class ChatRequest(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     title: str
+
+class GraphGenerateRequest(BaseModel):
+    session_id: Optional[str] = None
+    query: Optional[str] = None
+    title: Optional[str] = None
+    paper_id: Optional[str] = None
+    s2_api_key: Optional[str] = None
+    tavily_api_key: Optional[str] = None
+    max_nodes: Optional[int] = 50
+
+class DeleteGraphSessionRequest(BaseModel):
+    session_id: Optional[str] = None
 
 # --- Validation Endpoints ---
 
@@ -266,6 +280,118 @@ async def get_messages(session_id: str):
         return [{"role": m.role.value, "content": m.content} for m in messages]
     finally:
         db.close()
+
+# --- Graph Visualization & Traversal Endpoints ---
+
+@app.post("/api/graph/generate")
+async def generate_graph(req: GraphGenerateRequest):
+    """
+    Accepts paper metadata and user keys, triggers recursive citation/reference
+    traversal up to max_nodes (50), computes shortest-path graph distances,
+    stores the graph snapshot in PostgreSQL, and returns nodes and edges.
+    """
+    session_id = req.session_id or str(uuid.uuid4())
+    search_target = req.paper_id or req.title or req.query
+    if not search_target:
+        raise HTTPException(status_code=400, detail="Must provide 'paper_id', 'title', or 'query' to generate graph")
+
+    try:
+        service = GraphService(
+            s2_api_key=req.s2_api_key,
+            tavily_api_key=req.tavily_api_key or settings.TAVILY_API_KEY
+        )
+        
+        graph_data = await service.generate_citation_graph(
+            query=search_target,
+            title=req.title,
+            paper_id=req.paper_id,
+            max_nodes=req.max_nodes or 50
+        )
+
+        # Store snapshot in PostgreSQL
+        db = SessionLocal()
+        try:
+            snapshot = GraphSnapshot(
+                session_id=session_id,
+                root_paper_id=graph_data.get("root_paper_id"),
+                nodes=json.dumps(graph_data.get("nodes", [])),
+                edges=json.dumps(graph_data.get("edges", [])),
+                metadata_json=json.dumps({
+                    "total_nodes": graph_data.get("total_nodes", 0),
+                    "total_edges": graph_data.get("total_edges", 0),
+                    "search_target": search_target
+                })
+            )
+            db.add(snapshot)
+            db.commit()
+            db.refresh(snapshot)
+        finally:
+            db.close()
+
+        return {
+            "session_id": session_id,
+            "root_paper_id": graph_data.get("root_paper_id"),
+            "nodes": graph_data.get("nodes", []),
+            "edges": graph_data.get("edges", []),
+            "total_nodes": graph_data.get("total_nodes", 0),
+            "total_edges": graph_data.get("total_edges", 0)
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        print(f"ERROR in generate_graph: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/graph/session")
+async def delete_graph_session(req: Optional[DeleteGraphSessionRequest] = None, session_id: Optional[str] = None):
+    """
+    Instantly deletes the current session's graph records from the database.
+    """
+    target_session_id = (req.session_id if req and req.session_id else session_id)
+    if not target_session_id:
+        raise HTTPException(status_code=400, detail="session_id is required to delete graph records")
+
+    db = SessionLocal()
+    try:
+        deleted_count = db.query(GraphSnapshot).filter(GraphSnapshot.session_id == target_session_id).delete()
+        db.commit()
+        return {
+            "status": "success",
+            "message": f"Successfully deleted {deleted_count} graph record(s) for session {target_session_id}"
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete graph session: {str(e)}")
+    finally:
+        db.close()
+
+@app.get("/api/graph/session/{session_id}")
+async def get_graph_session(session_id: str):
+    """
+    Retrieve the latest graph snapshot for a given session.
+    """
+    db = SessionLocal()
+    try:
+        snapshot = db.query(GraphSnapshot).filter(
+            GraphSnapshot.session_id == session_id
+        ).order_by(GraphSnapshot.created_at.desc()).first()
+
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="No graph snapshot found for this session")
+
+        return {
+            "session_id": snapshot.session_id,
+            "root_paper_id": snapshot.root_paper_id,
+            "nodes": json.loads(snapshot.nodes or "[]"),
+            "edges": json.loads(snapshot.edges or "[]"),
+            "metadata": json.loads(snapshot.metadata_json or "{}"),
+            "created_at": snapshot.created_at
+        }
+    finally:
+        db.close()
+
 
 @app.on_event("startup")
 async def startup_event():

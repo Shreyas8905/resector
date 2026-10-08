@@ -16,17 +16,21 @@ import CritiqueTool from "@/components/CritiqueTool";
 import JargonTool from "@/components/JargonTool";
 import ResearchHistory from "@/components/ResearchHistory";
 import PaperChatPage from "@/app/paper-chat/page";
+import PaperGraphView from "@/components/PaperGraphView";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Network } from "lucide-react";
 
-type Tool = "sifter" | "critique" | "jargon" | "history" | "paperchat";
+type Tool = "sifter" | "critique" | "jargon" | "history" | "paperchat" | "graph";
 
 const tools: { id: Tool; label: string; icon: React.ReactNode }[] = [
   { id: "paperchat", label: "Paper Chat", icon: <MessageSquare size={17} /> },
+  { id: "graph", label: "Citation Graph", icon: <Network size={17} /> },
   { id: "sifter", label: "Sift Research", icon: <FileSearch size={17} /> },
   { id: "critique", label: "Stress Test", icon: <FlaskConical size={17} /> },
   { id: "jargon", label: "Simplify Text", icon: <Lightbulb size={17} /> },
   { id: "history", label: "Research Archive", icon: <Archive size={17} /> },
 ];
+
 
 export default function Page() {
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
@@ -112,7 +116,7 @@ export default function Page() {
         </header>
 
         <main
-          className={`min-h-0 flex-1 ${activeTool === "paperchat" ? "overflow-hidden" : "overflow-y-auto"}`}
+          className={`min-h-0 flex-1 ${activeTool === "paperchat" || activeTool === "graph" ? "overflow-hidden" : "overflow-y-auto"}`}
         >
           {!activeTool ? (
             <div className="mx-auto flex min-h-full w-full max-w-5xl items-center px-6 py-12 sm:px-10">
@@ -143,8 +147,9 @@ export default function Page() {
             </div>
           ) : (
             <div
-              className={`mx-auto w-full max-w-5xl px-6 py-8 sm:px-10 ${activeTool === "paperchat" ? "h-full max-w-none px-0 py-0" : ""}`}
+              className={`mx-auto w-full ${activeTool === "paperchat" || activeTool === "graph" ? "h-full max-w-none px-0 py-0" : "max-w-5xl px-6 py-8 sm:px-10"}`}
             >
+              {activeTool === "graph" && <PaperGraphView />}
               {activeTool === "sifter" && <SifterTool />}
               {activeTool === "critique" && <CritiqueTool />}
               {activeTool === "jargon" && <JargonTool />}
@@ -153,6 +158,7 @@ export default function Page() {
             </div>
           )}
         </main>
+
       </div>
     </div>
   );

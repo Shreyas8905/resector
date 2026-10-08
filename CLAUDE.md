@@ -11,11 +11,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Local Development
 **Infrastructure**
-- Run ChromaDB locally: `docker run -p 5000:8000 chromadb/chroma`
+- Run ChromaDB locally: `chroma run --host localhost --port 5000 --path .\chromadb`
 
 **Backend (FastAPI)**
 - Install dependencies: `cd backend && pip install -r requirements.txt`
-- Run server: `uvicorn main:app --reload --port 8000`
+- Run server: `uvicorn backend.main:app --reload --port 8000`
 
 **Frontend (Next.js)**
 - Install dependencies: `cd frontend && npm install`
@@ -25,6 +25,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## High-Level Architecture
 
 Resector is a local-first research companion using a decoupled Frontend/Backend architecture.
+
+### Latest Status (Oct 2026)
+- **Frontend**: Final UI improvements completed.
+- **Backend**: Rate limiting implemented for API stability.
+- **Features**: Integrated "Chat with Paper" functionality and live internet access via Tavily.
+- **Documentation**: Project documentation established.
 
 ### Data Flow
 `Frontend (Next.js)` $\rightarrow$ `Backend (FastAPI)` $\rightarrow$ `LangGraph Agent Loop` $\rightarrow$ `Tavily Search/LLM API`

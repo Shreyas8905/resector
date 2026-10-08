@@ -12,9 +12,12 @@ import {
   File,
   Bot,
   Paperclip,
+  Network,
+  Sparkles,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import PaperGraphView from "@/components/PaperGraphView";
 
 interface Session {
   id: string;
@@ -48,7 +51,10 @@ export default function PaperChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionPaneOpen, setIsSessionPaneOpen] = useState(false);
   const [isDocumentPaneOpen, setIsDocumentPaneOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"chat" | "graph">("chat");
+  const [selectedPaperForGraph, setSelectedPaperForGraph] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
 
   useEffect(() => {
     fetchSessions();
@@ -179,6 +185,9 @@ export default function PaperChatPage() {
           clearInterval(pollInterval);
           setIsUploading(false);
           fetchDocuments(sessionId);
+          // Set the uploaded file as the target for the citation network
+          const cleanName = files[0].name.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ");
+          setSelectedPaperForGraph(cleanName);
         }
       }, 2000);
     } catch (e) {
@@ -187,7 +196,14 @@ export default function PaperChatPage() {
     }
   };
 
+  const openCitationNetworkForDoc = (filename: string) => {
+    const cleanTitle = filename.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ");
+    setSelectedPaperForGraph(cleanTitle);
+    setActiveView("graph");
+  };
+
   const deleteDocument = async (docId: number) => {
+
     if (!activeSessionId) return;
     if (!confirm("Are you sure you want to delete this paper?")) return;
 
@@ -347,6 +363,38 @@ export default function PaperChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* View Mode Switcher: Chat vs Citation Network */}
+                  <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-0.5">
+                    <button
+                      onClick={() => setActiveView("chat")}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        activeView === "chat"
+                          ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm"
+                          : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      <MessageSquare size={14} />
+                      <span>Chat</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (documents.length > 0 && !selectedPaperForGraph) {
+                          openCitationNetworkForDoc(documents[0].filename);
+                        } else {
+                          setActiveView("graph");
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        activeView === "graph"
+                          ? "bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm"
+                          : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      <Network size={14} />
+                      <span>50-Paper Citation Network</span>
+                    </button>
+                  </div>
+
                   <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]">
                     <Upload size={16} />
                     <span className="hidden sm:inline">Upload Papers</span>
@@ -398,76 +446,108 @@ export default function PaperChatPage() {
                 </div>
               )}
 
-              {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-                {messages.map((m, i) => (
-                  <div
-                    key={i}
-                    className={`mx-auto flex w-full max-w-3xl gap-3 py-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-7 ${
-                        m.role === "user"
-                          ? "bg-[var(--surface-strong)] text-[var(--foreground)]"
-                          : "prose max-w-none rounded-none border-0 bg-transparent p-0 text-[var(--foreground)]"
-                      }`}
-                    >
-                      {m.role === "assistant" && (
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--accent-strong)]">
-                          <Bot size={15} /> Research assistant
+              {/* Main Content: Either Citation Network Graph or Chat Dialogue */}
+              {activeView === "graph" ? (
+                <div className="flex-1 overflow-hidden">
+                  <PaperGraphView
+                    initialQuery={
+                      selectedPaperForGraph ||
+                      (documents.length > 0
+                        ? documents[0].filename.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ")
+                        : "")
+                    }
+                  />
+                </div>
+              ) : (
+                <>
+                  {/* Suggestion banner if documents are uploaded and user is in chat */}
+                  {documents.length > 0 && (
+                    <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-muted)]/70 px-4 py-2 text-xs">
+                      <span className="text-[var(--muted)]">
+                        Active paper: <strong>{documents[0].filename}</strong>
+                      </span>
+                      <button
+                        onClick={() => openCitationNetworkForDoc(documents[0].filename)}
+                        className="flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline"
+                      >
+                        <Network size={13} />
+                        <span>View 50-Paper Citation Network</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Messages Area */}
+                  <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+                    {messages.map((m, i) => (
+                      <div
+                        key={i}
+                        className={`mx-auto flex w-full max-w-3xl gap-3 py-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-7 ${
+                            m.role === "user"
+                              ? "bg-[var(--surface-strong)] text-[var(--foreground)]"
+                              : "prose max-w-none rounded-none border-0 bg-transparent p-0 text-[var(--foreground)]"
+                          }`}
+                        >
+                          {m.role === "assistant" && (
+                            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--accent-strong)]">
+                              <Bot size={15} /> Research assistant
+                            </div>
+                          )}
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {m.content}
+                          </ReactMarkdown>
                         </div>
-                      )}
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {m.content}
-                      </ReactMarkdown>
+                      </div>
+                    ))}
+                    <div ref={scrollRef} />
+                  </div>
+
+                  {/* Input Area */}
+                  <div className="bg-gradient-to-t from-[var(--background)] via-[var(--background)]/95 to-transparent px-4 pb-4 pt-3 sm:px-6 sm:pb-6">
+                    <div className="relative mx-auto max-w-3xl">
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        placeholder="Message your papers..."
+                        className="h-28 w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 pb-12 pr-16 text-[var(--foreground)] shadow-[var(--shadow)] transition-all placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
+                      />
+                      <label
+                        className="absolute bottom-3 left-3 flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+                        title="Upload papers"
+                      >
+                        <Paperclip size={18} />
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf"
+                          className="hidden"
+                          onChange={handleFileUpload}
+                        />
+                      </label>
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={isLoading || !input.trim()}
+                        aria-label="Send message"
+                        className="absolute bottom-3 right-3 rounded-xl bg-[var(--accent)] p-2.5 text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="animate-spin" size={20} />
+                        ) : (
+                          <Send size={20} />
+                        )}
+                      </button>
                     </div>
                   </div>
-                ))}
-                <div ref={scrollRef} />
-              </div>
-
-              {/* Input Area */}
-              <div className="bg-gradient-to-t from-[var(--background)] via-[var(--background)]/95 to-transparent px-4 pb-4 pt-3 sm:px-6 sm:pb-6">
-                <div className="relative mx-auto max-w-3xl">
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder="Message your papers..."
-                    className="h-28 w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 pb-12 pr-16 text-[var(--foreground)] shadow-[var(--shadow)] transition-all placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
-                  />
-                  <label
-                    className="absolute bottom-3 left-3 flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-                    title="Upload papers"
-                  >
-                    <Paperclip size={18} />
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
-                  </label>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={isLoading || !input.trim()}
-                    aria-label="Send message"
-                    className="absolute bottom-3 right-3 rounded-xl bg-[var(--accent)] p-2.5 text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : (
-                      <Send size={20} />
-                    )}
-                  </button>
-                </div>
-              </div>
+                </>
+              )}
             </div>
 
             {/* Right Sidebar: Uploaded Papers */}
@@ -488,23 +568,35 @@ export default function PaperChatPage() {
                   documents.map((doc) => (
                     <div
                       key={doc.id}
-                      className="group flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 transition-all hover:border-[var(--border-strong)]"
+                      className="group flex flex-col gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2.5 transition-all hover:border-[var(--border-strong)]"
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <File
-                          size={14}
-                          className="shrink-0 text-[var(--muted)]"
-                        />
-                        <span className="truncate text-xs text-[var(--foreground)]">
-                          {doc.filename}
-                        </span>
+                      <div className="flex items-center justify-between gap-2 overflow-hidden">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <File
+                            size={14}
+                            className="shrink-0 text-[var(--muted)]"
+                          />
+                          <span className="truncate text-xs font-medium text-[var(--foreground)]" title={doc.filename}>
+                            {doc.filename}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => deleteDocument(doc.id)}
+                          className="p-1 text-[var(--subtle)] opacity-0 transition-colors hover:text-[var(--danger)] group-hover:opacity-100"
+                          title="Delete paper"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
+
+                      {/* Quick action: View Citation Network for this specific paper */}
                       <button
-                        onClick={() => deleteDocument(doc.id)}
-                        className="p-1 text-[var(--subtle)] opacity-0 transition-colors hover:text-[var(--danger)] group-hover:opacity-100"
-                        title="Delete paper"
+                        onClick={() => openCitationNetworkForDoc(doc.filename)}
+                        className="flex items-center justify-center gap-1 rounded-md bg-[var(--surface-strong)] py-1 text-[11px] font-medium text-[var(--accent)] transition-colors hover:bg-[var(--border-strong)]"
+                        title="Generate and view 50-Paper Citation Network"
                       >
-                        <Trash2 size={14} />
+                        <Network size={12} />
+                        <span>View 50-Paper Network</span>
                       </button>
                     </div>
                   ))
@@ -517,3 +609,4 @@ export default function PaperChatPage() {
     </div>
   );
 }
+
