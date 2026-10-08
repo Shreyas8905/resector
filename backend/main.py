@@ -277,9 +277,79 @@ async def get_messages(session_id: str):
     db = SessionLocal()
     try:
         messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
-        return [{"role": m.role.value, "content": m.content} for m in messages]
+        return [{"id": m.id, "role": m.role.value, "content": m.content, "created_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
     finally:
         db.close()
+
+@app.delete("/chat/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """Deletes a chat session along with all its messages, documents, and files."""
+    db = SessionLocal()
+    try:
+        session = db.query(UserSession).filter(UserSession.session_id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Delete physical document files
+        docs = db.query(Document).filter(Document.session_id == session_id).all()
+        for doc in docs:
+            if doc.file_path and os.path.exists(doc.file_path):
+                try:
+                    os.remove(doc.file_path)
+                except Exception as e:
+                    print(f"Failed to remove file {doc.file_path}: {e}")
+            db.delete(doc)
+
+        # Delete messages and research logs
+        db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)
+        db.query(ResearchLog).filter(ResearchLog.session_id == session_id).delete(synchronize_session=False)
+        db.query(GraphSnapshot).filter(GraphSnapshot.session_id == session_id).delete(synchronize_session=False)
+
+        # Delete session
+        db.delete(session)
+        db.commit()
+        return {"status": "success", "message": "Session deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.delete("/chat/sessions/{session_id}/messages")
+async def clear_session_messages(session_id: str):
+    """Clears all chat messages from a session while keeping documents intact."""
+    db = SessionLocal()
+    try:
+        db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)
+        db.commit()
+        return {"status": "success", "message": "Chat history cleared successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.delete("/chat/messages/{message_id}")
+async def delete_single_message(message_id: int):
+    """Deletes an individual chat message by ID."""
+    db = SessionLocal()
+    try:
+        msg = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        db.delete(msg)
+        db.commit()
+        return {"status": "success", "message": "Message deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
 
 # --- Graph Visualization & Traversal Endpoints ---
 

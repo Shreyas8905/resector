@@ -42,7 +42,7 @@ export default function Page() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
       <aside
         className={`${isSidebarOpen ? "w-64" : "w-0"} shrink-0 overflow-hidden border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 ${isSidebarOpen ? "max-md:w-64" : "max-md:w-0"}`}
       >
