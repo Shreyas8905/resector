@@ -648,63 +648,34 @@ export default function PaperGraphView({
     <div className="flex h-full w-full flex-col bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
       {/* Control Bar (Search in titles, Sliders, Layout buttons) */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
-        {/* Left: Search in titles filter */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative w-52 sm:w-64">
-            <input
-              type="text"
-              value={titleSearch}
-              onChange={(e) => {
-                setTitleSearch(e.target.value);
-                if (fgRef.current?.d3ReheatSimulation)
-                  fgRef.current.d3ReheatSimulation();
-              }}
-              placeholder="search in titles..."
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs text-[var(--foreground)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:bg-[var(--surface)] focus:outline-none"
-            />
-            {titleSearch && (
-              <button
-                onClick={() => {
-                  setTitleSearch("");
-                  if (fgRef.current?.d3ReheatSimulation)
-                    fgRef.current.d3ReheatSimulation();
-                }}
-                className="absolute right-2.5 top-2 text-[var(--muted)] hover:text-[var(--foreground)]"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
+        {/* Titles Density Slider */}
+        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="text-[11px] font-medium">Titles</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={titleSlider}
+            onChange={(e) => handleTitleSliderChange(Number(e.target.value))}
+            className="h-1.5 w-24 cursor-pointer accent-[var(--accent)]"
+            title={`Title Density: ${titleSlider}%`}
+          />
+        </div>
 
-          {/* Titles Density Slider */}
-          <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-            <span className="text-[11px] font-medium">Titles</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={titleSlider}
-              onChange={(e) => handleTitleSliderChange(Number(e.target.value))}
-              className="h-1.5 w-24 cursor-pointer accent-[var(--accent)]"
-              title={`Title Density: ${titleSlider}%`}
-            />
-          </div>
-
-          {/* Importance / Size Slider */}
-          <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-            <span className="text-[11px] font-medium">Importance</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={importanceSlider}
-              onChange={(e) =>
-                handleImportanceSliderChange(Number(e.target.value))
-              }
-              className="h-1.5 w-24 cursor-pointer accent-[var(--accent)]"
-              title={`Importance Scale: ${importanceSlider}%`}
-            />
-          </div>
+        {/* Importance / Size Slider */}
+        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="text-[11px] font-medium">Importance</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={importanceSlider}
+            onChange={(e) =>
+              handleImportanceSliderChange(Number(e.target.value))
+            }
+            className="h-1.5 w-24 cursor-pointer accent-[var(--accent)]"
+            title={`Importance Scale: ${importanceSlider}%`}
+          />
         </div>
 
         {/* Right: Layout Switchers & Recenter */}
