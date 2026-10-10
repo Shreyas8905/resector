@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Single-container deployment for local development
-# Usage: docker-compose -f docker-compose.single.yml up
+# Usage: docker-compose up --build
 
 services:
   resector:
@@ -13,8 +13,7 @@ services:
       - "3000:3000"  # Frontend (primary access point)
       - "8000:8000"  # Backend API (optional, for direct access)
     volumes:
-      - resector_data:/app/data              # ChromaDB + uploads persistence
-      - postgres_data:/var/lib/postgresql/15/main  # Database persistence
+      - resector_data:/app/data              # ChromaDB + uploads + PostgreSQL persistence
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     restart: unless-stopped
@@ -23,8 +22,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
 volumes:
   resector_data:
-  postgres_data:

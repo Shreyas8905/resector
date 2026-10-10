@@ -6,13 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg2 \
     lsb-release \
+    sudo \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         postgresql-15 \
         nodejs \
-        npm \
         supervisor \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,7 +25,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Install Node dependencies (layer caching)
 COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install
+RUN cd frontend && npm install --production=false
 
 # Copy application code
 COPY backend/ ./backend/
@@ -33,19 +34,24 @@ COPY frontend/ ./frontend/
 # Build frontend
 RUN cd frontend && npm run build
 
-# Initialize PostgreSQL cluster and create database/user
-RUN service postgresql start \
-    && su - postgres -c "psql -c \"CREATE USER resector WITH PASSWORD 'resector';\"" \
-    && su - postgres -c "psql -c \"CREATE DATABASE resector OWNER resector;\"" \
-    && su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE resector TO resector;\"" \
-    && service postgresql stop
-
-# Copy supervisor configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Create data directories
+# Create data and log directories
 RUN mkdir -p /app/data/chroma /app/uploads /var/log/supervisor
+
+# Set up PostgreSQL data directory and initialize the cluster
+RUN mkdir -p /app/data/postgres \
+    && chown -R postgres:postgres /app/data/postgres \
+    && sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /app/data/postgres \
+    && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres start \
+    && sudo -u postgres psql -c "CREATE USER resector WITH PASSWORD 'resector';" \
+    && sudo -u postgres psql -c "CREATE DATABASE resector OWNER resector;" \
+    && sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE resector TO resector;" \
+    && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres stop
+
+# Copy startup script and supervisor configuration
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 3000 8000
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/app/start.sh"]
