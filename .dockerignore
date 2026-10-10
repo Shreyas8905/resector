@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+LICENSE
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+.venv
+venv
+env
+*.egg-info
+.eggs
+
+# Node
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/.env.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist
+build
+*.log
+
+# Test files
+tests
+test
+*.test.*
+
+# Docker (avoid recursive copy)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Local data (shouldn't be in image)
+uploads
+chromadb
+*.db
+*.sqlite
+
+# Environment files
+.env
+.env.*
+!.env.example

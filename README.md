@@ -21,7 +21,7 @@ Resector employs a decoupled architecture designed for scalability, low latency,
 ### 1. 50-Paper Recursive Citation Graph Engine
 
 - **Multi-Source Academic Traversal**: Queries OpenAlex (250M+ scholarly works) and Semantic Scholar with ArXiv/DOI fallback to construct complete citation trees starting from any uploaded PDF or query title.
-- **Bibliographic Coupling & Cross-Citations**: Automatically discovers shared reference overlap (Jaccard $\ge 0.035$) across all candidate papers, producing 800+ interconnected chain links rather than isolated star networks.
+- **Bibliographic Coupling & Cross-Citations**: Automatically discovers shared reference overlap (Jaccard ≥ 0.035) across all candidate papers, producing 800+ interconnected chain links rather than isolated star networks.
 - **Louvain Modularity Community Detection**: Clusters papers into 4–8 distinct thematic communities, color-coding nodes with vibrant academic palettes (Orange, Green, Purple, Blue, Red, Brown, Yellow, Teal).
 - **Interactive D3 Physics Canvas**: Built with `react-force-graph-2d`, featuring live simulation reheating on slider interactions, dynamic title density thresholds, importance sizing, multi-line centered label pills, and GEXF export.
 
@@ -56,6 +56,30 @@ Resector employs a decoupled architecture designed for scalability, low latency,
 
 ## Setup and Installation
 
-For instructions on deploying Resector via Docker Compose or setting up the local development environment, see:
+For instructions on deploying Resector via Docker or setting up the local development environment, see:
 
 **[SETUP.md](./SETUP.md)**
+
+### Quick Start (Docker)
+
+```bash
+docker-compose up --build
+```
+
+Access at `http://localhost:3000`. One container runs everything (PostgreSQL, ChromaDB, Backend, Frontend).
+
+### Quick Start (Local Development)
+
+```bash
+# Terminal 1: ChromaDB
+chroma run --host localhost --port 5000 --path ./chromadb
+
+# Terminal 2: Backend
+cd backend && pip install -r requirements.txt
+uvicorn backend.main:app --reload --port 8000
+
+# Terminal 3: Frontend
+cd frontend && npm install && npm run dev
+```
+
+Access at `http://localhost:3000`.

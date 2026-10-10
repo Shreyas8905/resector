@@ -1,63 +1,30 @@
 version: '3.8'
 
+# Single-container deployment for local development
+# Usage: docker-compose -f docker-compose.single.yml up
+
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: resector-postgres
-    environment:
-      POSTGRES_USER: resector_user
-      POSTGRES_PASSWORD: resector_password
-      POSTGRES_DB: resector_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - resector-network
-
-  chromadb:
-    image: chromadb/chroma:latest
-    container_name: resector-chromadb
-    ports:
-      - "8000:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    networks:
-      - resector-network
-
-  backend:
+  resector:
     build:
-      context: ./backend
-    container_name: resector-backend
+      context: .
+      dockerfile: Dockerfile.all-in-one
+    container_name: resector-app
     ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://resector_user:resector_password@postgres:5432/resector_db
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-    depends_on:
-      - postgres
-      - chromadb
-    networks:
-      - resector-network
-
-  frontend:
-    build:
-      context: ./frontend
-    container_name: resector-frontend
-    ports:
-      - "3000:3000"
+      - "3000:3000"  # Frontend (primary access point)
+      - "8000:8000"  # Backend API (optional, for direct access)
+    volumes:
+      - resector_data:/app/data              # ChromaDB + uploads persistence
+      - postgres_data:/var/lib/postgresql/15/main  # Database persistence
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      - backend
-    networks:
-      - resector-network
-
-networks:
-  resector-network:
-    driver: bridge
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
+  resector_data:
   postgres_data:
-  chroma_data:

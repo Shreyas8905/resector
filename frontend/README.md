@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Resector Frontend
+
+Next.js 15+ / React 19 frontend for the Resector academic research workspace.
 
 ## Getting Started
 
-First, run the development server:
-
+### Development
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production Build
+```bash
+npm run build
+npm start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Environment Variables
 
-## Learn More
+Create a `.env.local` file:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The frontend is a single-page workspace with a sidebar tool switcher:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Paper Chat** — Immersive PDF-grounded conversation with RAG agent
+- **Citation Graph** — Interactive 50-paper network with D3 physics and Louvain clustering
+- **Sift Research** — Methodology extraction from abstracts
+- **Stress Test** — Adversarial hypothesis critique with persona spectrum
+- **Simplify Text** — Jargon-to-plain-English translation
+- **Research Archive** — Semantic search across past research outputs
 
-## Deploy on Vercel
+### Key Components
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Component | Purpose |
+|---|---|
+| `SettingsDrawer` | API key management for LLM providers, Tavily, Semantic Scholar |
+| `PaperGraphView` | ForceGraph2D canvas with D3 physics, community clusters, GEXF export |
+| `ThemeToggle` | Dark/light mode with SSR-safe mounting |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **UI**: React 19, Tailwind CSS 4, Lucide icons
+- **Visualization**: react-force-graph-2d
+- **Markdown**: react-markdown + remark-gfm
