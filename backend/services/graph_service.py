@@ -1,5 +1,7 @@
 import asyncio
 import re
+import hashlib
+import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 import httpx
 import networkx as nx
@@ -8,6 +10,8 @@ try:
     from tavily import TavilyClient
 except ImportError:
     TavilyClient = None
+
+logger = logging.getLogger(__name__)
 
 S2_BASE_URL = "https://api.semanticscholar.org/graph/v1"
 OPENALEX_BASE_URL = "https://api.openalex.org"
@@ -72,8 +76,13 @@ class GraphService:
                     return resp.json()
                 elif resp.status_code == 429:
                     await asyncio.sleep(1.2 * (attempt + 1))
-            except Exception:
-                pass
+                elif resp.status_code == 404:
+                    logger.debug(f"Paper not found in S2: {paper_id}")
+                    return None
+            except httpx.TimeoutException:
+                logger.warning(f"Timeout fetching S2 paper {paper_id}")
+            except Exception as e:
+                logger.warning(f"Error fetching S2 paper {paper_id}: {str(e)}")
         return None
 
     async def search_paper_s2(self, client: httpx.AsyncClient, query: str) -> Optional[Dict[str, Any]]:
@@ -94,8 +103,10 @@ class GraphService:
                         return top
                 elif resp.status_code == 429:
                     await asyncio.sleep(1.2 * (attempt + 1))
-            except Exception:
-                pass
+            except httpx.TimeoutException:
+                logger.warning(f"Timeout searching S2 for: {query}")
+            except Exception as e:
+                logger.warning(f"Error searching S2 for '{query}': {str(e)}")
         return None
 
     # --- OpenAlex Integration (250M+ Academic Papers & Citations) ---
@@ -110,8 +121,10 @@ class GraphService:
                 results = data.get("results", [])
                 if results:
                     return results[0]
+        except httpx.TimeoutException:
+            logger.warning(f"Timeout searching OpenAlex for: {query}")
         except Exception as e:
-            print(f"[GraphService] OpenAlex search error: {e}")
+            logger.warning(f"OpenAlex search error: {str(e)}")
         return None
 
     async def fetch_openalex_citations(self, client: httpx.AsyncClient, openalex_id: str, limit: int = 50) -> List[Dict[str, Any]]:
@@ -127,8 +140,10 @@ class GraphService:
             resp = await client.get(url, params=params, headers=self._get_openalex_headers(), timeout=10.0)
             if resp.status_code == 200:
                 return resp.json().get("results", [])
+        except httpx.TimeoutException:
+            logger.warning(f"Timeout fetching OpenAlex citations for: {openalex_id}")
         except Exception as e:
-            print(f"[GraphService] OpenAlex citations fetch error: {e}")
+            logger.warning(f"OpenAlex citations fetch error: {str(e)}")
         return []
 
     async def fetch_openalex_references(self, client: httpx.AsyncClient, ref_ids: List[str], limit: int = 30) -> List[Dict[str, Any]]:
@@ -146,8 +161,10 @@ class GraphService:
             resp = await client.get(url, params=params, headers=self._get_openalex_headers(), timeout=10.0)
             if resp.status_code == 200:
                 return resp.json().get("results", [])
+        except httpx.TimeoutException:
+            logger.warning("Timeout fetching OpenAlex references")
         except Exception as e:
-            print(f"[GraphService] OpenAlex references fetch error: {e}")
+            logger.warning(f"OpenAlex references fetch error: {str(e)}")
         return []
 
     # --- Academic Tavily Search Fallback ---
@@ -182,7 +199,7 @@ class GraphService:
                 "results": results
             }
         except Exception as e:
-            print(f"[GraphService] Tavily search error: {e}")
+            logger.warning(f"Tavily search error: {str(e)}")
             return None
 
     # --- Unified Resolution ---
@@ -321,8 +338,10 @@ class GraphService:
                     return root_dict, parsed_cites, []
 
         # 5. Guaranteed Synthetic Fallback Root
+        # Use stable hash instead of Python's hash() which varies across processes
+        stable_hash = hashlib.sha256(clean_target.encode()).hexdigest()[:8]
         root_dict = {
-            "paperId": f"paper_{abs(hash(clean_target)) % 100000000}",
+            "paperId": f"synthetic_{stable_hash}",
             "title": clean_target or "Uploaded Research Paper",
             "year": None,
             "authors": ["Author"],

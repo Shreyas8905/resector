@@ -1,17 +1,15 @@
 from typing import Any, Dict, Optional, List, Annotated
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
 from langchain.tools import tool
 from langchain_core.tools import Tool
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
-from tavily import TavilyClient
 from pydantic import BaseModel
+import logging
 
 from .provider_factory import ProviderFactory, ProviderConfig
 from .database import SessionLocal, ResearchLog, get_vector_collection
+
+logger = logging.getLogger(__name__)
 
 # --- Request/Response Models ---
 
@@ -21,11 +19,13 @@ class ResearchRequest(BaseModel):
     api_key: str
     tavily_api_key: Optional[str] = None
     model_name: Optional[str] = None
-    severity: Optional[str] = "constructive" # For critique tool
+    severity: Optional[str] = "constructive"  # For critique tool
+
 
 class ResearchResponse(BaseModel):
     output: str
     provider: str
+
 
 # --- Configuration & Constants ---
 
@@ -37,19 +37,29 @@ PERSONA_MAP = {
     "devils_advocate": "Act as the Devil's Advocate. Your primary goal is to challenge the core hypothesis. Find competing theories, counter-arguments, and alternative explanations that the author ignored."
 }
 
+
 # --- Tools ---
 
 @tool
 def web_search(query: str, tavily_api_key: str):
     """Search the web for academic papers, recent findings, and factual data to verify claims or find gaps."""
-    tavily = TavilyClient(api_key=tavily_api_key)
-    response = tavily.search(query=query, search_depth="advanced", max_results=5)
+    try:
+        from tavily import TavilyClient
+        tavily = TavilyClient(api_key=tavily_api_key)
+        response = tavily.search(query=query, search_depth="advanced", max_results=5)
 
-    results = []
-    for res in response['results']:
-        results.append(f"Source: {res['url']}\nContent: {res['content']}")
+        results = []
+        for res in response.get('results', []):
+            results.append(f"Source: {res.get('url', 'unknown')}\nContent: {res.get('content', '')}")
 
-    return "\n\n".join(results)
+        return "\n\n".join(results) if results else "No results found."
+    except ImportError:
+        logger.error("Tavily package not installed")
+        return "Error: Tavily package not installed. Install with: pip install tavily-python"
+    except Exception as e:
+        logger.error(f"Web search error: {str(e)}")
+        return f"Search error: {str(e)}"
+
 
 # --- Core Logic ---
 
@@ -60,7 +70,7 @@ class ToolLogic:
 
         # Only provide the search tool if a key is available
         tools = []
-        if tavily_api_key:
+        if tavily_api_key and tavily_api_key.strip():
             # We wrap the search tool to automatically inject the API key
             def search_with_key(query: str):
                 return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
@@ -126,18 +136,32 @@ class ToolLogic:
         )
         return await ToolLogic._run_agent(config, system_prompt, text, tavily_api_key)
 
-async def log_research(tool_name: str, input_text: str, output_text: str, provider: str):
+
+async def log_research(tool_name: str, input_text: str, output_text: str, provider: str, session_id: Optional[str] = None):
+    """Logs a research interaction to the database and vector store.
+
+    Args:
+        tool_name: Name of the tool used (sifter, critique, jargon)
+        input_text: The user's input text
+        output_text: The tool's output
+        provider: The LLM provider used
+        session_id: Optional session ID. Defaults to 'default_session' if not provided.
+    """
     db = SessionLocal()
     try:
         from .database import UserSession
-        session = db.query(UserSession).filter(UserSession.session_id == "default_session").first()
+
+        target_session = session_id or "default_session"
+
+        # Ensure session exists
+        session = db.query(UserSession).filter(UserSession.session_id == target_session).first()
         if not session:
-            session = UserSession(session_id="default_session")
+            session = UserSession(session_id=target_session)
             db.add(session)
             db.commit()
 
         log = ResearchLog(
-            session_id="default_session",
+            session_id=target_session,
             tool_name=tool_name,
             input_text=input_text,
             output_text=output_text,
@@ -146,13 +170,17 @@ async def log_research(tool_name: str, input_text: str, output_text: str, provid
         db.add(log)
         db.commit()
 
+        # Add to vector collection for search
         collection = get_vector_collection()
         collection.add(
             documents=[output_text],
-            metadatas=[{"tool": tool_name, "provider": provider}],
+            metadatas=[{"tool": tool_name, "provider": provider, "session_id": target_session}],
             ids=[f"log_{log.id}"]
         )
+        logger.debug(f"Logged research: {tool_name} for session {target_session}")
+
     except Exception as e:
-        print(f"Database logging error: {str(e)}")
+        logger.error(f"Database logging error: {str(e)}")
+        # Don't re-raise - logging failure shouldn't break the main flow
     finally:
         db.close()

@@ -3,16 +3,28 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AI
 from langchain_core.tools import Tool
 from langgraph.prebuilt import create_react_agent
 from ..provider_factory import ProviderFactory, ProviderConfig
-from ..database import SessionLocal, ChatMessage, get_vector_collection
+from ..database import SessionLocal, ChatMessage, MessageRole, get_vector_collection
 from ..tools import web_search
 from ..config import RateLimitError
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import uuid
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def is_rate_limit_error(exception):
     """Checks if an exception is a rate limit error from any provider."""
     error_msg = str(exception).lower()
-    return "rate limit" in error_msg or "429" in error_msg
+    return "rate limit" in error_msg or "429" in error_msg or "too many requests" in error_msg
+
+
+def is_retryable_error(exception):
+    """Returns True only for retryable errors (rate limits, transient network errors)."""
+    if is_rate_limit_error(exception):
+        return True
+    # Retry on transient network errors, not on auth/validation errors
+    error_msg = str(exception).lower()
+    return "timeout" in error_msg or "connection" in error_msg or "503" in error_msg or "502" in error_msg
 
 class RAGAgent:
     def __init__(self, config: ProviderConfig, session_id: str):
@@ -93,21 +105,14 @@ class RAGAgent:
         @retry(
             stop=stop_after_attempt(5),
             wait=wait_exponential(multiplier=1, min=2, max=10),
-            retry=retry_if_exception_type(Exception), # We filter for rate limits inside the wrapper if needed, but here we catch and let tenacity handle retries of the ainvoke call
+            retry=retry_if_exception(is_retryable_error),
             reraise=True
         )
         async def _call():
             return await agent_executor.ainvoke({"messages": messages})
 
-        try:
-            result = await _call()
-            return result["messages"][-1].content
-        except Exception as e:
-            if not is_rate_limit_error(e):
-                raise e
-            # If it is a rate limit error, we want tenacity to retry.
-            # The @retry decorator is already on _call.
-            raise e
+        result = await _call()
+        return result["messages"][-1].content
 
 async def get_chat_history(session_id: str) -> List[BaseMessage]:
     """Retrieves chat history from DB and converts it to LangChain messages."""
@@ -116,9 +121,10 @@ async def get_chat_history(session_id: str) -> List[BaseMessage]:
         messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
         langchain_msgs = []
         for msg in messages:
-            if msg.role == "user":
+            # Fix: Compare enum to enum, not string
+            if msg.role == MessageRole.USER:
                 langchain_msgs.append(HumanMessage(content=msg.content))
-            elif msg.role == "assistant":
+            elif msg.role == MessageRole.ASSISTANT:
                 langchain_msgs.append(AIMessage(content=msg.content))
             else:
                 langchain_msgs.append(SystemMessage(content=msg.content))
@@ -130,7 +136,6 @@ async def save_chat_message(session_id: str, role: str, content: str, citations:
     """Saves a chat message to the database."""
     db = SessionLocal()
     try:
-        from ..database import ChatMessage, MessageRole
         msg = ChatMessage(
             session_id=session_id,
             role=MessageRole[role.upper()],
@@ -139,5 +144,9 @@ async def save_chat_message(session_id: str, role: str, content: str, citations:
         )
         db.add(msg)
         db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error saving chat message: {str(e)}")
+        raise
     finally:
         db.close()

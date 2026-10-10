@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 interface Config {
   provider: string;
@@ -17,19 +17,30 @@ interface SavedConfig extends Config {
 export default function SettingsDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<Config>(() => {
-    const saved =
-      typeof window !== "undefined"
-        ? localStorage.getItem("resector_config")
-        : null;
-    return saved
-      ? JSON.parse(saved)
-      : {
-          provider: "groq",
-          apiKey: "",
-          modelName: "",
-          tavilyApiKey: "",
-          s2ApiKey: "",
-        };
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("resector_config");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // Invalid JSON - return defaults
+          return {
+            provider: "groq",
+            apiKey: "",
+            modelName: "",
+            tavilyApiKey: "",
+            s2ApiKey: "",
+          };
+        }
+      }
+    }
+    return {
+      provider: "groq",
+      apiKey: "",
+      modelName: "",
+      tavilyApiKey: "",
+      s2ApiKey: "",
+    };
   });
 
   const [isValidating, setIsValidating] = useState(false);
@@ -37,15 +48,45 @@ export default function SettingsDrawer() {
   const [isTavilyValidating, setIsTavilyValidating] = useState(false);
   const [tavilyValidationMsg, setTavilyValidationMsg] = useState("");
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>(() => {
-    const saved =
-      typeof window !== "undefined"
-        ? localStorage.getItem("resector_saved_configs")
-        : null;
-    return saved ? JSON.parse(saved) : [];
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("resector_saved_configs");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
   });
   const [configName, setConfigName] = useState("");
 
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleEscape);
+    }
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen]);
+
+  // Close on backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      setIsOpen(false);
+    }
+  };
+
   const validateKey = async () => {
+    if (!config.apiKey || !config.apiKey.trim()) {
+      setValidationMsg("❌ API key cannot be empty");
+      return;
+    }
     setIsValidating(true);
     setValidationMsg("");
     try {
@@ -56,7 +97,7 @@ export default function SettingsDrawer() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             provider: config.provider,
-            api_key: config.apiKey,
+            api_key: config.apiKey.trim(),
             model_name: config.modelName,
           }),
         },
@@ -64,18 +105,22 @@ export default function SettingsDrawer() {
 
       const data = await response.json();
       if (response.ok) {
-        setValidationMsg("✅ Key is valid!");
+        setValidationMsg("API key is valid");
       } else {
-        setValidationMsg(`❌ ${data.detail || "Invalid key"}`);
+        setValidationMsg(data.detail || "Invalid key");
       }
-    } catch {
-      setValidationMsg("❌ Connection error");
+    } catch (err) {
+      setValidationMsg("Connection error");
     } finally {
       setIsValidating(false);
     }
   };
 
   const validateTavilyKey = async () => {
+    if (!config.tavilyApiKey || !config.tavilyApiKey.trim()) {
+      setTavilyValidationMsg("Tavily key cannot be empty");
+      return;
+    }
     setIsTavilyValidating(true);
     setTavilyValidationMsg("");
     try {
@@ -85,30 +130,30 @@ export default function SettingsDrawer() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            api_key: config.tavilyApiKey,
+            api_key: config.tavilyApiKey.trim(),
           }),
         },
       );
 
       const data = await response.json();
       if (response.ok) {
-        setTavilyValidationMsg("✅ Tavily key is valid!");
+        setTavilyValidationMsg("Tavily key is valid");
       } else {
-        setTavilyValidationMsg(`❌ ${data.detail || "Invalid key"}`);
+        setTavilyValidationMsg(data.detail || "Invalid key");
       }
-    } catch {
-      setTavilyValidationMsg("❌ Connection error");
+    } catch (err) {
+      setTavilyValidationMsg("Connection error");
     } finally {
       setIsTavilyValidating(false);
     }
   };
 
   const saveCurrentConfig = () => {
-    if (!configName) {
+    if (!configName.trim()) {
       alert("Please enter a name for this configuration");
       return;
     }
-    const newSaved = [...savedConfigs, { name: configName, ...config }];
+    const newSaved = [...savedConfigs, { name: configName.trim(), ...config }];
     setSavedConfigs(newSaved);
     localStorage.setItem("resector_saved_configs", JSON.stringify(newSaved));
     setConfigName("");
@@ -126,7 +171,6 @@ export default function SettingsDrawer() {
     localStorage.setItem("resector_config", JSON.stringify(saved));
     alert(`Applied configuration: ${saved.name}`);
   };
-
 
   const deleteConfig = (index: number) => {
     const newSaved = savedConfigs.filter((_, i) => i !== index);
@@ -149,7 +193,10 @@ export default function SettingsDrawer() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end">
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end"
+          onClick={handleBackdropClick}
+        >
           <div className="h-full w-full max-w-md overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl animate-in slide-in-from-right duration-300 sm:p-8">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-semibold">Settings</h2>
@@ -226,7 +273,11 @@ export default function SettingsDrawer() {
                     </div>
                     {validationMsg && (
                       <p
-                        className={`mt-1 text-[10px] font-medium ${validationMsg.includes("✅") ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
+                        className={`mt-1 text-[10px] font-medium ${
+                          validationMsg.includes("is valid")
+                            ? "text-[var(--success)]"
+                            : "text-[var(--danger)]"
+                        }`}
                       >
                         {validationMsg}
                       </p>
@@ -257,7 +308,11 @@ export default function SettingsDrawer() {
                     </div>
                     {tavilyValidationMsg && (
                       <p
-                        className={`mt-1 text-[10px] font-medium ${tavilyValidationMsg.includes("✅") ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
+                        className={`mt-1 text-[10px] font-medium ${
+                          tavilyValidationMsg.includes("is valid")
+                            ? "text-[var(--success)]"
+                            : "text-[var(--danger)]"
+                        }`}
                       >
                         {tavilyValidationMsg}
                       </p>
@@ -278,7 +333,7 @@ export default function SettingsDrawer() {
                       className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
                     />
                     <p className="mt-1 text-[10px] text-[var(--subtle)]">
-                      Leaves empty for default unauthenticated public access.
+                      Leave empty for default unauthenticated public access.
                     </p>
                   </div>
 
@@ -318,9 +373,9 @@ export default function SettingsDrawer() {
                       No saved profiles yet.
                     </p>
                   ) : (
-                    savedConfigs.map((saved: SavedConfig, idx: number) => (
+                    savedConfigs.map((saved: SavedConfig) => (
                       <div
-                        key={idx}
+                        key={saved.name}
                         className="group flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3 transition-all hover:border-[var(--border-strong)]"
                       >
                         <div>
@@ -340,7 +395,7 @@ export default function SettingsDrawer() {
                             Apply
                           </button>
                           <button
-                            onClick={() => deleteConfig(idx)}
+                            onClick={() => deleteConfig(savedConfigs.indexOf(saved))}
                             className="p-2 text-[var(--subtle)] transition-colors hover:text-[var(--danger)]"
                             title="Delete Profile"
                           >

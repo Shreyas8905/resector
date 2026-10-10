@@ -8,7 +8,8 @@ type Theme = "light" | "dark";
 const THEME_STORAGE_KEY = "resector_theme";
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
@@ -16,9 +17,11 @@ export default function ThemeToggle() {
     setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
     document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    setMounted(true);
   }, []);
 
   const toggleTheme = () => {
+    if (!theme) return;
     const nextTheme: Theme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
@@ -26,6 +29,12 @@ export default function ThemeToggle() {
     document.documentElement.classList.toggle("dark", nextTheme === "dark");
   };
 
+  // Prevent hydration mismatch - render placeholder until mounted
+  if (!mounted) {
+    return (
+      <div className="h-9 w-9 rounded-lg border border-[var(--border)] bg-[var(--surface)]" />
+    );
+  }
 
   const isDark = theme === "dark";
 

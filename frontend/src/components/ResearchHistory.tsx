@@ -14,23 +14,33 @@ export default function ResearchHistory() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<HistoryResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const searchHistory = async () => {
+    if (!query.trim()) return;
+
     setIsLoading(true);
+    setError(null);
     try {
+      // Backend endpoint is GET with query param
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/search`,
+        `${process.env.NEXT_PUBLIC_API_URL}/search?query=${encodeURIComponent(query.trim())}`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
+          method: "GET",
         },
       );
-      if (!response.ok) throw new Error("Search failed");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || "Search failed");
+      }
       const data = await response.json();
-      setResults(data.results);
+      setResults(data.results || []);
+      setHasSearched(true);
     } catch (e) {
       console.error("Search error:", e);
+      setError(e instanceof Error ? e.message : "Search failed");
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -53,22 +63,33 @@ export default function ResearchHistory() {
         />
         <button
           onClick={searchHistory}
-          disabled={isLoading || !query}
+          disabled={isLoading || !query.trim()}
           className="rounded-xl bg-[var(--accent)] px-6 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
         >
           {isLoading ? "..." : <Search size={20} />}
         </button>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-4">
-        {results.length === 0 && !isLoading && (
+        {!hasSearched && !isLoading && (
+          <p className="py-12 text-center text-[var(--muted)]">
+            Enter a search query to find past research snippets.
+          </p>
+        )}
+        {hasSearched && results.length === 0 && !isLoading && (
           <p className="py-12 text-center text-[var(--muted)]">
             No matching research snippets found.
           </p>
         )}
         {results.map((res, idx) => (
           <div
-            key={idx}
+            key={`result-${idx}-${res.tool || "unknown"}`}
             className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]"
           >
             <div className="flex justify-between items-center mb-2">
