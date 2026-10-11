@@ -1,28 +1,44 @@
 version: '3.8'
 
-# Single-container deployment for local development
+# Two-container deployment: PostgreSQL + App (ChromaDB, Backend, Frontend)
 # Usage: docker-compose up --build
 
 services:
-  resector:
+  postgres:
+    image: postgres:15-alpine
+    container_name: resector-postgres
+    environment:
+      POSTGRES_USER: resector
+      POSTGRES_PASSWORD: resector
+      POSTGRES_DB: resector
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resector -d resector"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.all-in-one
+      dockerfile: Dockerfile.app
     container_name: resector-app
     ports:
-      - "3000:3000"  # Frontend (primary access point)
-      - "8000:8000"  # Backend API (optional, for direct access)
+      - "3000:3000"  # Frontend
+      - "8000:8000"  # Backend API
     volumes:
-      - resector_data:/app/data              # ChromaDB + uploads + PostgreSQL persistence
+      - app_data:/app/data  # ChromaDB + uploads
     environment:
+      - DATABASE_URL=postgresql://resector:resector@postgres:5432/resector
+      - CHROMA_HOST=127.0.0.1
+      - CHROMA_PORT=5000
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
 volumes:
-  resector_data:
+  postgres_data:
+  app_data:

@@ -3,16 +3,25 @@ set -e
 
 echo "=== Starting Resector ==="
 
+# Ensure log directory exists and is writable
+mkdir -p /var/log/supervisor
+chmod 777 /var/log/supervisor 2>/dev/null || true
+
+# Ensure postgres owns the data directory
+chown -R postgres:postgres /app/data/postgres 2>/dev/null || true
+
 # Start PostgreSQL
 echo "Starting PostgreSQL..."
 sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres -l /var/log/supervisor/postgresql.log start
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-until sudo -u postgres pg_isready -q; do
-    echo "PostgreSQL not ready yet..."
-    sleep 1
-done
+# Check if PostgreSQL started
+sleep 2
+if ! sudo -u postgres pg_isready -q; then
+    echo "PostgreSQL failed to start. Log output:"
+    cat /var/log/supervisor/postgresql.log 2>/dev/null || echo "No log file found"
+    exit 1
+fi
+
 echo "PostgreSQL is ready!"
 
 # Start ChromaDB
@@ -21,7 +30,6 @@ chroma run --host 127.0.0.1 --port 5000 --path /app/data/chroma > /var/log/super
 CHROMA_PID=$!
 
 # Wait for ChromaDB
-echo "Waiting for ChromaDB..."
 sleep 5
 
 # Start Backend
@@ -34,7 +42,6 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000 > /var/log/supervisor/backen
 BACKEND_PID=$!
 
 # Wait for Backend
-echo "Waiting for Backend..."
 sleep 5
 
 # Start Frontend

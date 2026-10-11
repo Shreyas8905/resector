@@ -34,23 +34,23 @@ COPY frontend/ ./frontend/
 # Build frontend
 RUN cd frontend && npm run build
 
-# Create data and log directories
-RUN mkdir -p /app/data/chroma /app/uploads /var/log/supervisor
+# Create all necessary directories with proper permissions
+RUN mkdir -p /app/data/chroma /app/data/postgres /app/uploads \
+    && mkdir -p /var/log/supervisor \
+    && chmod 777 /var/log/supervisor \
+    && chown -R postgres:postgres /app/data/postgres
 
-# Set up PostgreSQL data directory and initialize the cluster
-RUN mkdir -p /app/data/postgres \
-    && chown -R postgres:postgres /app/data/postgres \
-    && sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /app/data/postgres \
+# Initialize PostgreSQL cluster
+RUN sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /app/data/postgres \
     && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres start \
     && sudo -u postgres psql -c "CREATE USER resector WITH PASSWORD 'resector';" \
     && sudo -u postgres psql -c "CREATE DATABASE resector OWNER resector;" \
     && sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE resector TO resector;" \
     && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres stop
 
-# Copy startup script and supervisor configuration
+# Copy startup script
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 3000 8000
 
