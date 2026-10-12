@@ -12,7 +12,16 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# sentence-transformers depends on PyTorch. The application does not use CUDA,
+# so install the CPU wheel before the remaining dependencies to avoid pulling
+# several gigabytes of NVIDIA runtime libraries into the image.
+RUN pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.2.2+cpu \
+    && printf 'torch==2.2.2+cpu\n' > /tmp/pytorch-constraints.txt \
+    && pip install --no-cache-dir \
+        --constraint /tmp/pytorch-constraints.txt \
+        -r backend/requirements.txt
 
 # Install Node dependencies
 COPY frontend/package*.json ./frontend/

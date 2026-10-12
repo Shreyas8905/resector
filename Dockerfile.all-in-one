@@ -21,7 +21,13 @@ WORKDIR /app
 
 # Install Python dependencies first (layer caching)
 COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.2.2+cpu \
+    && printf 'torch==2.2.2+cpu\n' > /tmp/pytorch-constraints.txt \
+    && pip install --no-cache-dir \
+        --constraint /tmp/pytorch-constraints.txt \
+        -r backend/requirements.txt
 
 # Install Node dependencies (layer caching)
 COPY frontend/package*.json ./frontend/
@@ -39,14 +45,6 @@ RUN mkdir -p /app/data/chroma /app/data/postgres /app/uploads \
     && mkdir -p /var/log/supervisor \
     && chmod 777 /var/log/supervisor \
     && chown -R postgres:postgres /app/data/postgres
-
-# Initialize PostgreSQL cluster
-RUN sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /app/data/postgres \
-    && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres start \
-    && sudo -u postgres psql -c "CREATE USER resector WITH PASSWORD 'resector';" \
-    && sudo -u postgres psql -c "CREATE DATABASE resector OWNER resector;" \
-    && sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE resector TO resector;" \
-    && sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres stop
 
 # Copy startup script
 COPY start.sh /app/start.sh

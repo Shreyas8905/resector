@@ -66,7 +66,8 @@ For instructions on deploying Resector via Docker or setting up the local develo
 docker-compose up --build
 ```
 
-Access at `http://localhost:3000`. One container runs everything (PostgreSQL, ChromaDB, Backend, Frontend).
+Access at `http://localhost:3000`. One container runs PostgreSQL, ChromaDB, the
+backend, and the frontend.
 
 ### Quick Start (Local Development)
 

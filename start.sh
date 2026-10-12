@@ -1,72 +1,70 @@
 #!/bin/bash
-set -e
+set -Eeuo pipefail
 
-echo "=== Starting Resector ==="
+DATA_DIR=/app/data
+POSTGRES_DIR="$DATA_DIR/postgres"
+LOG_DIR=/var/log/supervisor
 
-# Ensure log directory exists and is writable
-mkdir -p /var/log/supervisor
-chmod 777 /var/log/supervisor 2>/dev/null || true
+mkdir -p "$POSTGRES_DIR" "$DATA_DIR/chroma" "$LOG_DIR"
+chown -R postgres:postgres "$POSTGRES_DIR"
 
-# Ensure postgres owns the data directory
-chown -R postgres:postgres /app/data/postgres 2>/dev/null || true
+if [ ! -f "$POSTGRES_DIR/PG_VERSION" ]; then
+    sudo -u postgres /usr/lib/postgresql/15/bin/initdb \
+        -D "$POSTGRES_DIR" --auth-host=scram-sha-256
+fi
 
-# Start PostgreSQL
-echo "Starting PostgreSQL..."
-sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres -l /var/log/supervisor/postgresql.log start
+sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl \
+    -D "$POSTGRES_DIR" \
+    -l "$LOG_DIR/postgresql.log" start
 
-# Check if PostgreSQL started
-sleep 2
-if ! sudo -u postgres pg_isready -q; then
-    echo "PostgreSQL failed to start. Log output:"
-    cat /var/log/supervisor/postgresql.log 2>/dev/null || echo "No log file found"
+cleanup() {
+    kill "$FRONTEND_PID" "$BACKEND_PID" "$CHROMA_PID" 2>/dev/null || true
+    sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl \
+        -D "$POSTGRES_DIR" stop -m fast 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+for _ in {1..30}; do
+    if sudo -u postgres pg_isready -q -h 127.0.0.1; then
+        break
+    fi
+    sleep 1
+done
+
+if ! sudo -u postgres pg_isready -q -h 127.0.0.1; then
+    echo "PostgreSQL failed to become ready"
     exit 1
 fi
 
-echo "PostgreSQL is ready!"
+sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='resector'" |
+    grep -q 1 || sudo -u postgres psql -c \
+    "CREATE USER resector WITH PASSWORD 'resector';"
+sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='resector'" |
+    grep -q 1 || sudo -u postgres createdb -O resector resector
 
-# Start ChromaDB
-echo "Starting ChromaDB..."
-chroma run --host 127.0.0.1 --port 5000 --path /app/data/chroma > /var/log/supervisor/chromadb.log 2>&1 &
+chroma run --host 127.0.0.1 --port 5000 --path "$DATA_DIR/chroma" \
+    > "$LOG_DIR/chromadb.log" 2>&1 &
 CHROMA_PID=$!
 
-# Wait for ChromaDB
-sleep 5
-
-# Start Backend
-echo "Starting Backend..."
-export DATABASE_URL="postgresql://resector:resector@127.0.0.1:5432/resector"
-export CHROMA_HOST="127.0.0.1"
-export CHROMA_PORT="5000"
 cd /app
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 > /var/log/supervisor/backend.log 2>&1 &
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 \
+    > "$LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
-# Wait for Backend
-sleep 5
+for _ in {1..60}; do
+    if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+        break
+    fi
+    sleep 1
+done
 
-# Start Frontend
-echo "Starting Frontend..."
+if ! curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+    cat "$LOG_DIR/backend.log"
+    exit 1
+fi
+
 cd /app/frontend
-export NODE_ENV=production
-export NEXT_PUBLIC_API_URL="http://localhost:8000"
-npm start > /var/log/supervisor/frontend.log 2>&1 &
+NODE_ENV=production npm start > "$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 
-echo "=== All services started ==="
-echo "Frontend: http://localhost:3000"
-echo "Backend API: http://localhost:8000"
-
-# Handle graceful shutdown
-cleanup() {
-    echo "Shutting down..."
-    kill $FRONTEND_PID 2>/dev/null || true
-    kill $BACKEND_PID 2>/dev/null || true
-    kill $CHROMA_PID 2>/dev/null || true
-    sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D /app/data/postgres stop 2>/dev/null || true
-    exit 0
-}
-
-trap cleanup SIGTERM SIGINT
-
-# Keep the container running and show logs
-wait
+wait -n "$CHROMA_PID" "$BACKEND_PID" "$FRONTEND_PID"

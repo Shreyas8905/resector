@@ -12,7 +12,9 @@ Ensure you have the following installed on your system:
 
 ## Option A: Docker Deployment (Recommended)
 
-Resector ships as a **single all-in-one container** that bundles PostgreSQL, ChromaDB, the FastAPI backend, and the Next.js frontend. One command starts everything.
+Resector uses a single-container Docker deployment. PostgreSQL, ChromaDB, the
+FastAPI backend, and the Next.js frontend run together, avoiding dependency on
+Docker bridge networking between application containers.
 
 ### 1. Environment Configuration
 Create a `.env` file in the `backend/` directory:
@@ -44,11 +46,11 @@ docker-compose down -v
 ```
 
 ### How It Works
-- **`Dockerfile.all-in-one`**: Builds a single image containing PostgreSQL 15, ChromaDB, Python 3.11 (backend), and Node.js (frontend).
-- **`supervisord.conf`**: Manages all four processes inside the container, starting them in the correct dependency order.
-- **`docker-compose.yml`**: Defines a single service with volume persistence for database and ChromaDB data.
+- **`Dockerfile.all-in-one`**: Builds the image containing PostgreSQL 15, ChromaDB, Python 3.11 (backend), and Node.js (frontend).
+- **`start.sh`**: Initializes and starts the four services with readiness checks.
+- **`docker-compose.yml`**: Starts the all-in-one container with persistent data and health checks.
 
-Data persists across restarts via Docker volumes (`resector_data` and `postgres_data`).
+Data persists across restarts via the `resector_data` Docker volume.
 
 ---
 

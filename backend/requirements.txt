@@ -5,6 +5,7 @@ langchain-community
 langchain-openai
 langchain-anthropic
 langchain-google-genai
+langchain-groq
 groq
 sqlalchemy
 psycopg2-binary

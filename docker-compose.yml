@@ -1,44 +1,29 @@
-version: '3.8'
-
-# Two-container deployment: PostgreSQL + App (ChromaDB, Backend, Frontend)
-# Usage: docker-compose up --build
+# Single-container deployment: PostgreSQL, ChromaDB, Backend, and Frontend
+# Usage: docker compose up --build
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: resector-postgres
-    environment:
-      POSTGRES_USER: resector
-      POSTGRES_PASSWORD: resector
-      POSTGRES_DB: resector
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U resector -d resector"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  app:
+  resector:
     build:
       context: .
-      dockerfile: Dockerfile.app
-    container_name: resector-app
+      dockerfile: Dockerfile.all-in-one
+    container_name: resector
     ports:
-      - "3000:3000"  # Frontend
-      - "8000:8000"  # Backend API
+      - "3000:3000"
+      - "8000:8000"
     volumes:
-      - app_data:/app/data  # ChromaDB + uploads
+      - resector_data:/app/data
     environment:
-      - DATABASE_URL=postgresql://resector:resector@postgres:5432/resector
-      - CHROMA_HOST=127.0.0.1
-      - CHROMA_PORT=5000
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: postgresql://resector:resector@127.0.0.1:5432/resector
+      CHROMA_HOST: 127.0.0.1
+      CHROMA_PORT: "5000"
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
 volumes:
-  postgres_data:
-  app_data:
+  resector_data:
