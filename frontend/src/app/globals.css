@@ -58,6 +58,22 @@ body {
     color 180ms ease;
 }
 
+.light-logo {
+  display: inline-flex;
+}
+
+.dark-logo {
+  display: none;
+}
+
+html.dark .light-logo {
+  display: none;
+}
+
+html.dark .dark-logo {
+  display: inline-flex;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }

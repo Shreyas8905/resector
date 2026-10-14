@@ -1,4 +1,13 @@
-# Resector
+<div align="center">
+  <img src="frontend/public/logos/logo-dark.png" alt="Resector Logo" width="300" height="300" />
+
+  <h1 style="border-bottom: none;">Resector</h1>
+
+  <p>
+    An AI-powered research workstation for intelligent literature exploration,
+    evidence synthesis, and scientific discovery.
+  </p>
+</div>
 
 Resector is an advanced, local-first academic research workstation designed to augment scientific inquiry and literature exploration. By integrating agentic retrieval-augmented generation (RAG), multi-document state management, recursive citation graph cartography, and real-time scholarly search, Resector transforms static PDF libraries into an interactive, multi-dimensional knowledge ecosystem.
 

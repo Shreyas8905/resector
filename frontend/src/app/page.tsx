@@ -19,8 +19,15 @@ import PaperChatPage from "@/app/paper-chat/page";
 import PaperGraphView from "@/components/PaperGraphView";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Network } from "lucide-react";
+import Image from "next/image";
 
-type Tool = "sifter" | "critique" | "jargon" | "history" | "paperchat" | "graph";
+type Tool =
+  | "sifter"
+  | "critique"
+  | "jargon"
+  | "history"
+  | "paperchat"
+  | "graph";
 
 const tools: { id: Tool; label: string; icon: React.ReactNode }[] = [
   { id: "paperchat", label: "Paper Chat", icon: <MessageSquare size={17} /> },
@@ -30,7 +37,6 @@ const tools: { id: Tool; label: string; icon: React.ReactNode }[] = [
   { id: "jargon", label: "Simplify Text", icon: <Lightbulb size={17} /> },
   { id: "history", label: "Research Archive", icon: <Archive size={17} /> },
 ];
-
 
 export default function Page() {
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
@@ -51,8 +57,24 @@ export default function Page() {
             onClick={() => selectTool(null)}
             className="mb-8 flex items-center gap-3 px-2 text-left"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)]">
-              <FlaskConical size={18} />
+            <span className="light-logo">
+              <Image
+                src="/logos/logo-light.png"
+                alt="Resector"
+                width={75}
+                height={75}
+                priority
+              />
+            </span>
+
+            <span className="dark-logo">
+              <Image
+                src="/logos/logo-dark.png"
+                alt="Resector"
+                width={75}
+                height={75}
+                priority
+              />
             </span>
             <span>
               <span className="block text-sm font-semibold tracking-wide">
@@ -158,7 +180,6 @@ export default function Page() {
             </div>
           )}
         </main>
-
       </div>
     </div>
   );
