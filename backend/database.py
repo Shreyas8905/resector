@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Enum as SqlEnum
+from sqlalchemy import create_engine, event, Column, Integer, String, Text, DateTime, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 from datetime import datetime, timezone
 import enum
@@ -27,8 +27,14 @@ class MessageRole(enum.Enum):
     SYSTEM = "system"
 
 
+# NOTE: sqlite_autoincrement=True makes SQLite behave like Postgres sequences:
+# IDs are never reused after a row is deleted. This matters because ChromaDB
+# entries are keyed on these IDs (log_{id}, document_id).
+
+
 class UserSession(Base):
     __tablename__ = "user_sessions"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, unique=True, index=True)
     title = Column(String, default="New Research Session")
@@ -42,6 +48,7 @@ class UserSession(Base):
 
 class ResearchLog(Base):
     __tablename__ = "research_logs"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, ForeignKey("user_sessions.session_id"), index=True)
     tool_name = Column(String)  # "sifter", "critique", "jargon"
@@ -55,6 +62,7 @@ class ResearchLog(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, ForeignKey("user_sessions.session_id"), index=True)
     role = Column(SqlEnum(MessageRole))
@@ -67,6 +75,7 @@ class ChatMessage(Base):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, ForeignKey("user_sessions.session_id"), index=True)
     filename = Column(String)
@@ -80,6 +89,7 @@ class Document(Base):
 
 class GraphSnapshot(Base):
     __tablename__ = "graph_snapshots"
+    __table_args__ = {"sqlite_autoincrement": True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, index=True)
     root_paper_id = Column(String, nullable=True)
@@ -89,12 +99,22 @@ class GraphSnapshot(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-# PostgreSQL Setup
+# SQLite Setup
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,
-    connect_args={"connect_timeout": 10},
+    connect_args={"check_same_thread": False, "timeout": 30},
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, _record):
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")   # background PDF jobs won't block requests
+    cur.execute("PRAGMA busy_timeout=30000")
+    cur.execute("PRAGMA foreign_keys=ON")    # SQLite ignores FKs unless enabled
+    cur.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

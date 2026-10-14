@@ -4,13 +4,20 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+
+# All persistent data lives here (override with the DATA_DIR env var)
+DATA_DIR = Path(os.environ.get("DATA_DIR", PROJECT_ROOT / "user_data")).resolve()
+UPLOAD_DIR = DATA_DIR / "uploads"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseSettings):
-    # Default is for local development; production supplies DATABASE_URL.
+    # Default is a SQLite file in user_data/; set DATABASE_URL to override.
     DATABASE_URL: str = os.environ.get(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/resector",
+        f"sqlite:///{(DATA_DIR / 'resector.db').as_posix()}",
     )
     CHROMA_PORT: int = int(os.environ.get("CHROMA_PORT", "5000"))
     CHROMA_HOST: str = os.environ.get("CHROMA_HOST", "localhost")

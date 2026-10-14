@@ -4,14 +4,13 @@ from contextlib import asynccontextmanager
 import os
 import uuid
 import logging
-import sqlalchemy
 from typing import List, Optional, Generator
 from pydantic import BaseModel, Field
 
 from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig, ProviderFactory
-from .config import settings, RateLimitError
+from .config import settings, RateLimitError, UPLOAD_DIR
 from .services.pdf_processor import PDFProcessor
 from .services.rag_agent import RAGAgent, get_chat_history, save_chat_message
 from .services.graph_service import GraphService
@@ -23,19 +22,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan handler for startup and shutdown events."""
-    # Startup
+    # Startup: creates all tables (including title/updated_at) in SQLite
     init_db()
-    # Sync database schema for development
-    db = SessionLocal()
-    try:
-        db.execute(sqlalchemy.text("ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS title VARCHAR"))
-        db.execute(sqlalchemy.text("ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE"))
-        db.commit()
-        logger.info("Database schema synchronized successfully.")
-    except Exception as e:
-        logger.warning(f"Schema sync notice: {e}")
-    finally:
-        db.close()
 
     yield  # Application runs here
 
@@ -247,15 +235,11 @@ async def upload_pdf(
     files: List[UploadFile] = File(...),
     db=Depends(get_db)
 ):
-    upload_folder = "uploads"
-    if not os.path.exists(upload_folder):
-        os.makedirs(upload_folder)
-
     doc_ids = []
     for file in files:
         # Sanitize filename to prevent path traversal
         safe_filename = os.path.basename(file.filename or "unnamed.pdf")
-        file_path = os.path.join(upload_folder, f"{uuid.uuid4()}_{safe_filename}")
+        file_path = str(UPLOAD_DIR / f"{uuid.uuid4()}_{safe_filename}")
 
         with open(file_path, "wb") as f:
             f.write(await file.read())
@@ -308,7 +292,12 @@ async def chat_message(req: ChatRequest):
 
 @app.get("/chat/sessions/{session_id}/messages")
 async def get_messages(session_id: str, db=Depends(get_db)):
-    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+        .all()
+    )
     return [{"id": m.id, "role": m.role.value, "content": m.content, "created_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
 
 @app.delete("/chat/sessions/{session_id}")
@@ -382,7 +371,7 @@ async def generate_graph(req: GraphGenerateRequest):
     """
     Accepts paper metadata and user keys, triggers recursive citation/reference
     traversal up to max_nodes (50), computes shortest-path graph distances,
-    stores the graph snapshot in PostgreSQL, and returns nodes and edges.
+    stores the graph snapshot in the database, and returns nodes and edges.
     """
     session_id = req.session_id or str(uuid.uuid4())
     search_target = req.paper_id or req.title or req.query
@@ -405,7 +394,7 @@ async def generate_graph(req: GraphGenerateRequest):
             max_nodes=max_nodes
         )
 
-        # Store snapshot in PostgreSQL
+        # Store snapshot in the database
         db = SessionLocal()
         try:
             snapshot = GraphSnapshot(

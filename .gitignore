@@ -8,6 +8,7 @@ venv/
 env/
 chromadb_data/
 reset_db.py
+user_data/
 
 # Environment variables
 .env
