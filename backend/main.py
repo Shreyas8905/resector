@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional, Generator
 from pydantic import BaseModel, Field
 
-from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot
+from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings, RateLimitError, UPLOAD_DIR
@@ -15,6 +15,7 @@ from .services.pdf_processor import PDFProcessor
 from .services.rag_agent import RAGAgent, get_chat_history, save_chat_message
 from .services.graph_service import GraphService
 import json
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,10 @@ async def lifespan(app: FastAPI):
     """Lifespan handler for startup and shutdown events."""
     # Startup: creates all tables (including title/updated_at) in SQLite
     init_db()
+
+    logger.info("Preparing embedding model (first..")
+    await asyncio.to_thread(warm_up_embedding_model)
+    logger.info("Embedding model ready.")
 
     yield  # Application runs here
 

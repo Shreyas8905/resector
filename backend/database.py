@@ -144,3 +144,15 @@ def get_chroma_client():
 def get_vector_collection(collection_name="resector_research"):
     client = get_chroma_client()
     return client.get_or_create_collection(name=collection_name)
+
+def warm_up_embedding_model():
+    """Blocks until Chroma is reachable and the embedding model is downloaded and loaded."""
+    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
+    # Fail fast if the Chroma server isn't up
+    get_chroma_client().heartbeat()
+    get_vector_collection()
+
+    # First call downloads the model (~80 MB) if it isn't cached, then runs it once
+    embedding_fn = DefaultEmbeddingFunction()
+    embedding_fn(["warm up"])
