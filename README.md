@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="frontend/public/logos/logo-dark.png" alt="Resector Logo" width="300" height="300" />
+  <img src="frontend/public/logos/logo-dark.png" alt="ReSector Logo" width="300" height="300" />
 
-  <h1 style="border-bottom: none;">Resector</h1>
+  <h1 style="border-bottom: none;">ReSector</h1>
 
   <p>
     An AI-powered research workstation for intelligent literature exploration,
@@ -9,7 +9,7 @@
   </p>
 </div>
 
-Resector is an advanced, local-first academic research workstation designed to augment scientific inquiry and literature exploration. By integrating agentic retrieval-augmented generation (RAG), multi-document state management, recursive citation graph cartography, and real-time scholarly search, Resector transforms static PDF libraries into an interactive, multi-dimensional knowledge ecosystem.
+ReSector is an advanced, local-first academic research workstation designed to augment scientific inquiry and literature exploration. By integrating agentic retrieval-augmented generation (RAG), multi-document state management, recursive citation graph cartography, and real-time scholarly search, ReSector transforms static PDF libraries into an interactive, multi-dimensional knowledge ecosystem.
 
 The system is engineered to handle the rigor of academic workflows—providing tools for structured methodology extraction, adversarial hypothesis stress-testing through persona spectrums, thematic Louvain community clustering, and semantic synthesis across complex document corpora.
 
@@ -17,7 +17,7 @@ The system is engineered to handle the rigor of academic workflows—providing t
 
 ## System Architecture
 
-Resector employs a decoupled architecture designed for scalability, low latency, and complete data sovereignty. The orchestration layer operates independently from vector and relational persistence layers, ensuring sensitive research papers remain locally managed while interfacing with state-of-the-art LLMs and open academic knowledge graphs.
+ReSector employs a decoupled architecture designed for scalability, low latency, and complete data sovereignty. The orchestration layer operates independently from vector and relational persistence layers, ensuring sensitive research papers remain locally managed while interfacing with state-of-the-art LLMs and open academic knowledge graphs.
 
 ### Architecture Overview
 
@@ -65,7 +65,7 @@ Resector employs a decoupled architecture designed for scalability, low latency,
 
 ## Setup and Installation
 
-For instructions on deploying Resector via Docker or setting up the local development environment, see:
+For instructions on deploying ReSector via Docker or setting up the local development environment, see:
 
 **[SETUP.md](./SETUP.md)**
 

@@ -61,8 +61,8 @@ export default function Page() {
               <Image
                 src="/logos/logo-light.png"
                 alt="Resector"
-                width={75}
-                height={75}
+                width={60}
+                height={60}
                 priority
               />
             </span>
@@ -71,14 +71,14 @@ export default function Page() {
               <Image
                 src="/logos/logo-dark.png"
                 alt="Resector"
-                width={75}
-                height={75}
+                width={60}
+                height={60}
                 priority
               />
             </span>
             <span>
               <span className="block text-sm font-semibold tracking-wide">
-                Resector
+                ReSector
               </span>
               <span className="block text-xs text-[var(--muted)]">
                 Research workspace
@@ -101,10 +101,24 @@ export default function Page() {
               </button>
             ))}
           </nav>
-
-          <div className="mt-auto border-t border-[var(--border)] px-3 pt-4 text-xs text-[var(--subtle)]">
-            Local research tools
-          </div>
+          {!activeTool ? (
+            <div></div>
+          ) : (
+            <footer className="mt-auto py-1 text-center text-xs text-[var(--muted)] border-t border-[var(--border)] flex items-center justify-center gap-2">
+              <span>Enjoying Resector?</span>
+              <a
+                href="https://github.com/Shreyas8905/resector"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 font-medium text-[var(--foreground)] hover:text-[var(--accent)] transition-colors"
+              >
+                <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+                <span>Star on GitHub</span>
+              </a>
+            </footer>
+          )}
         </div>
       </aside>
 
@@ -141,22 +155,41 @@ export default function Page() {
           className={`min-h-0 flex-1 ${activeTool === "paperchat" || activeTool === "graph" ? "overflow-hidden" : "overflow-y-auto"}`}
         >
           {!activeTool ? (
-            <div className="mx-auto flex min-h-full w-full max-w-5xl items-center px-6 py-12 sm:px-10">
-              <div className="w-full">
-                <div className="mb-10 max-w-xl">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-                    Research workspace
+            <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-between px-0.5 py-0.1 sm:px-10">
+              <div className="w-full flex flex-col items-center justify-center text-center my-auto">
+                <span className="light-logo">
+                  <Image
+                    src="/logos/logo-light.png"
+                    alt="ReSector"
+                    width={200}
+                    height={200}
+                    priority
+                  />
+                </span>
+
+                <span className="dark-logo">
+                  <Image
+                    src="/logos/logo-dark.png"
+                    alt="ReSector"
+                    width={200}
+                    height={200}
+                    priority
+                  />
+                </span>
+                <div className="mb-10 max-w-xl mx-auto">
+                  <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-[var(--accent)]">
+                    ReSector
                   </p>
-                  <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-1xl">
                     Choose a tool to begin.
-                  </h1>
+                  </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 w-full">
                   {tools.map((tool) => (
                     <button
                       key={tool.id}
                       onClick={() => selectTool(tool.id)}
-                      className="group flex min-h-32 flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition-colors hover:border-[var(--accent)]"
+                      className="group flex min-h-20 flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition-colors hover:border-[var(--accent)]"
                     >
                       <span className="text-[var(--accent)]">{tool.icon}</span>
                       <span className="text-sm font-medium group-hover:text-[var(--accent-strong)]">
@@ -166,6 +199,22 @@ export default function Page() {
                   ))}
                 </div>
               </div>
+
+              {/* GitHub Star Footer */}
+              <footer className="mt-auto py-2 text-center text-xs text-[var(--muted)] border-t border-[var(--border)] flex items-center justify-center gap-2">
+                <span>Enjoying Resector?</span>
+                <a
+                  href="https://github.com/Shreyas8905/resector"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-medium text-[var(--foreground)] hover:text-[var(--accent)] transition-colors"
+                >
+                  <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                  </svg>
+                  <span>Star on GitHub</span>
+                </a>
+              </footer>
             </div>
           ) : (
             <div
