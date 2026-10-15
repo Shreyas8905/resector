@@ -1,29 +1,74 @@
-# Single-container deployment: PostgreSQL, ChromaDB, Backend, and Frontend
-# Usage: docker compose up --build
+# One command:  docker compose up -d --build
+# Stop (data kept):  docker compose stop      or      docker compose down
+# NEVER run `docker compose down -v` unless you want to delete all your data.
+
+name: resector
+
+x-backend-build: &backend-build
+  context: ./backend
 
 services:
-  resector:
+  # ChromaDB server. Built from the SAME image as the backend, so the server
+  # and client versions always match (no version pinning needed).
+  chroma:
+    build: *backend-build
+    image: resector-backend
+    command: chroma run --host 0.0.0.0 --port 5000 --path /chroma_data
+    volumes:
+      - chroma_data:/chroma_data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 5000), 3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build: *backend-build
+    image: resector-backend
+    depends_on:
+      chroma:
+        condition: service_healthy
+    # Optional: your backend/.env (API keys such as TAVILY_API_KEY). Needs Compose >= 2.24.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    # These override anything in backend/.env (e.g. an old postgres DATABASE_URL).
+    environment:
+      DATA_DIR: /data
+      DATABASE_URL: sqlite:////data/resector.db
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "5000"
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - user_data:/data                          # SQLite DB + uploaded PDFs
+      - model_cache:/root/.cache/chroma          # embedding model (downloaded once)
+      # Already downloaded the model on Windows? Use your host cache instead of the line above:
+      # - ${USERPROFILE}/.cache/chroma:/root/.cache/chroma
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 900s   # first start may download the ~80 MB embedding model
+    restart: unless-stopped
+
+  frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.all-in-one
-    container_name: resector
+      context: ./frontend
+      args:
+        # Baked into the build; this is the URL your BROWSER uses to reach the API.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
-      - "8000:8000"
-    volumes:
-      - resector_data:/app/data
-    environment:
-      DATABASE_URL: postgresql://resector:resector@127.0.0.1:5432/resector
-      CHROMA_HOST: 127.0.0.1
-      CHROMA_PORT: "5000"
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
 
 volumes:
-  resector_data:
+  user_data:
+  chroma_data:
+  model_cache:
