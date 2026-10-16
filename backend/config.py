@@ -11,6 +11,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", PROJECT_ROOT / "user_data")).resolve(
 UPLOAD_DIR = DATA_DIR / "uploads"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+_BUNDLED_MODEL = BASE_DIR / "models" / "all-MiniLM-L6-v2"
 
 
 class Settings(BaseSettings):
@@ -22,6 +23,12 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = int(os.environ.get("CHROMA_PORT", "5000"))
     CHROMA_HOST: str = os.environ.get("CHROMA_HOST", "localhost")
     TAVILY_API_KEY: str = os.environ.get("TAVILY_API_KEY", "")
+    CHROMA_MODE: str = os.environ.get("CHROMA_MODE", "embedded")   
+    CHROMA_PATH: str = os.environ.get("CHROMA_PATH", str(DATA_DIR / "chroma"))
+    EMBEDDING_MODEL_DIR: str = os.environ.get(
+        "EMBEDDING_MODEL_DIR",
+        str(_BUNDLED_MODEL) if (_BUNDLED_MODEL / "onnx.tar.gz").exists() else "",
+    )
 
     class Config:
         env_file = os.path.join(BASE_DIR, ".env")

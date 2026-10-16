@@ -9,6 +9,7 @@ env/
 chromadb_data/
 reset_db.py
 user_data/
+backend/models/all-MiniLM-L6-v2/onnx/
 
 # Environment variables
 .env

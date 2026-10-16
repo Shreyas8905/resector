@@ -145,14 +145,37 @@ def get_vector_collection(collection_name="resector_research"):
     client = get_chroma_client()
     return client.get_or_create_collection(name=collection_name)
 
+def get_chroma_client():
+    """Thread-safe singleton. Embedded by default; set CHROMA_MODE=http to use a server."""
+    global _chroma_client
+    if _chroma_client is None:
+        with _chroma_lock:
+            if _chroma_client is None:
+                if settings.CHROMA_MODE == "http":
+                    _chroma_client = chromadb.HttpClient(
+                        host=settings.CHROMA_HOST,
+                        port=int(settings.CHROMA_PORT),
+                    )
+                else:
+                    from pathlib import Path
+                    Path(settings.CHROMA_PATH).mkdir(parents=True, exist_ok=True)
+                    _chroma_client = chromadb.PersistentClient(
+                        path=settings.CHROMA_PATH,
+                        settings=ChromaSettings(anonymized_telemetry=False),
+                    )
+    return _chroma_client
+
+
 def warm_up_embedding_model():
-    """Blocks until Chroma is reachable and the embedding model is downloaded and loaded."""
+    """Blocks until Chroma is ready and the embedding model is downloaded and loaded."""
+    from pathlib import Path
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-    # Fail fast if the Chroma server isn't up
+    # Optional: use a model folder shipped with the app instead of ~/.cache/chroma
+    if settings.EMBEDDING_MODEL_DIR:
+        from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
+        ONNXMiniLM_L6_V2.DOWNLOAD_PATH = Path(settings.EMBEDDING_MODEL_DIR)
+
     get_chroma_client().heartbeat()
     get_vector_collection()
-
-    # First call downloads the model (~80 MB) if it isn't cached, then runs it once
-    embedding_fn = DefaultEmbeddingFunction()
-    embedding_fn(["warm up"])
+    DefaultEmbeddingFunction()(["warm up"])

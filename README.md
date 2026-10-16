@@ -63,6 +63,10 @@ ReSector employs a decoupled architecture designed for scalability, low latency,
 
 ---
 
+Embedding Model credit: sentence-transformers/all-MiniLM-L6-v2
+
+---
+
 ## Setup and Installation
 
 For instructions on deploying ReSector via Docker or setting up the local development environment, see:
@@ -81,14 +85,12 @@ backend, and the frontend.
 ### Quick Start (Local Development)
 
 ```bash
-# Terminal 1: ChromaDB
-chroma run --host localhost --port 5000 --path ./chromadb
-
-# Terminal 2: Backend
+# Terminal 1: Backend
 cd backend && pip install -r requirements.txt
+#run in root
 uvicorn backend.main:app --reload --port 8000
 
-# Terminal 3: Frontend
+# Terminal 2: Frontend
 cd frontend && npm install && npm run dev
 ```
 

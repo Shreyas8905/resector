@@ -67,19 +67,8 @@ Data persists across restarts via the `resector_data` Docker volume.
 
 Use this method if you need to debug the backend/frontend code in real-time or prefer not to use Docker.
 
-### 1. Infrastructure Setup
 
-#### ChromaDB
-
-Run ChromaDB in a separate terminal:
-
-```bash
-chroma run --host localhost --port 5000 --path ./chromadb
-```
-
-_Note: The backend connects to ChromaDB on port 5000 by default._
-
-### 2. Backend Configuration and Execution
+### 1. Backend Configuration and Execution
 
 1. **Navigate to backend**:
    ```bash
@@ -102,12 +91,12 @@ _Note: The backend connects to ChromaDB on port 5000 by default._
    source venv/bin/activate
    pip install -r requirements.txt
    ```
-4. **Start Server**:
+4. **Start Server in root**:
    ```bash
    uvicorn backend.main:app --reload --port 8000
    ```
 
-### 3. Frontend Configuration and Execution
+### 2. Frontend Configuration and Execution
 
 1. **Navigate to frontend**:
    ```bash
