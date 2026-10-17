@@ -100,7 +100,6 @@ export default function CritiqueTool() {
       description="Stress-test your hypothesis with a professional peer review."
       icon={<AlertTriangle size={20} />}
     >
-      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <div className="space-y-6">
         <ToolInput
           label="Hypothesis or Statement"
@@ -108,6 +107,7 @@ export default function CritiqueTool() {
           value={input}
           onChange={setInput}
         />
+        <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
 
         <div className="space-y-3">
           <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
@@ -130,13 +130,16 @@ export default function CritiqueTool() {
             ))}
           </div>
         </div>
-
+        {isLoading
+          ? file
+            ? "Reading document, this can take a few minutes..."
+            : "Reviewing..."
+          : ""}
         {error && (
           <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
             {error}
           </div>
         )}
-
         <button
           onClick={handleProcess}
           disabled={isLoading || (!input.trim() && !file)}

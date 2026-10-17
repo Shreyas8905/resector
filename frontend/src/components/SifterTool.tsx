@@ -31,7 +31,7 @@ export default function SifterTool() {
     try {
       if (file) {
         setOutput(await processDocument("sifter", file));
-        return; 
+        return;
       }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/process/sifter`,
@@ -69,18 +69,24 @@ export default function SifterTool() {
       description="Extract core research questions, methodology, and fatal flaws."
       icon={<FileSearch size={20} />}
     >
-      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <ToolInput
         label="Academic Text"
         placeholder="Paste an abstract or methodology snippet here..."
         value={input}
         onChange={setInput}
       />
+      {isLoading
+        ? file
+          ? "Reading document, this can take a few minutes..."
+          : "Sifting..."
+        : ""}
       {error && (
         <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
           {error}
         </div>
       )}
+      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
+
       <button
         onClick={handleProcess}
         disabled={isLoading || (!input.trim() && !file)}

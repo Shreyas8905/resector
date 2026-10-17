@@ -3,24 +3,15 @@
 import React, { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
-
-function getConfig() {
-  try {
-    const saved = localStorage.getItem("resector_config");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch {
-    // Invalid JSON
-  }
-  return { provider: "groq", apiKey: "", modelName: "" };
-}
+import DocumentPicker from "./DocumentPicker";
+import { getConfig, processDocument } from "../lib/documentApi";
 
 export default function JargonTool() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const handleProcess = async () => {
     const config = getConfig();
@@ -29,10 +20,17 @@ export default function JargonTool() {
       setError("Please configure your API key in Settings");
       return;
     }
-
+    if (!file && !input.trim()) {
+      setError("Paste text or upload a document");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
+      if (file) {
+        setOutput(await processDocument("jargon", file));
+        return;
+      }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/process/jargon`,
         {
@@ -75,14 +73,20 @@ export default function JargonTool() {
         value={input}
         onChange={setInput}
       />
+      {isLoading
+        ? file
+          ? "Reading document, this can take a few minutes..."
+          : "Simplifying..."
+        : ""}
       {error && (
         <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
           {error}
         </div>
       )}
+      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <button
         onClick={handleProcess}
-        disabled={isLoading || !input.trim()}
+        disabled={isLoading || (!input.trim() && !file)}
         className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? "Simplifying..." : "Simplify Text"}
