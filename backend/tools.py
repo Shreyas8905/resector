@@ -5,6 +5,10 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 import logging
+import asyncio
+import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from .config import settings, RateLimitError
 
 from .provider_factory import ProviderFactory, ProviderConfig
 from .database import SessionLocal, ResearchLog, get_vector_collection
@@ -63,6 +67,18 @@ def web_search(query: str, tavily_api_key: str):
 
 
 # --- Core Logic ---
+
+class DocumentTooLongError(ValueError):
+    pass
+
+
+HEAD_CHARS = 2500
+MAP_PROMPT = (
+    "You are condensing one section of an academic paper into dense notes for a later analysis. "
+    "Keep: research questions, hypotheses, methods, datasets, sample sizes, metrics, exact numeric results, "
+    "key claims, assumptions, stated limitations, and defined terms. Drop boilerplate, acknowledgements and "
+    "citation lists. Use terse bullet points, at most 250 words. Do not add commentary or outside knowledge."
+)
 
 class ToolLogic:
     @staticmethod
@@ -182,6 +198,100 @@ class ToolLogic:
             "2. Real-World Analogy: A vivid analogy to make the concept stick."
         )
         return await ToolLogic._run_agent(config, system_prompt, text, tavily_api_key)
+        
+    @staticmethod
+    def _strip_references(text: str) -> str:
+        matches = list(re.finditer(r"^\s*(references|bibliography)\s*$", text, re.IGNORECASE | re.MULTILINE))
+        for m in reversed(matches):
+            if m.start() > len(text) * 0.5:
+                return text[:m.start()]
+        return text
+
+    @staticmethod
+    async def _retry(fn):
+        """Retries on provider rate limits, waiting as long as the provider asks. Oversized requests are not retried."""
+        last_err = None
+        for _ in range(6):
+            try:
+                return await fn()
+            except Exception as e:
+                msg = str(e).lower()
+                if "request too large" in msg or "error code: 413" in msg:
+                    raise
+                if not ("rate limit" in msg or "429" in msg or "tokens per minute" in msg or "too many requests" in msg):
+                    raise
+                last_err = e
+                m = re.search(r"try again in ([\d.]+)\s*(ms|s)\b", msg)
+                wait = (float(m.group(1)) / (1000 if m.group(2) == "ms" else 1) + 1) if m else 20
+                logger.info(f"Rate limited; waiting {wait:.0f}s")
+                await asyncio.sleep(min(wait, 65))
+        raise RateLimitError(f"Rate limit still exceeded after several retries: {last_err}")
+
+    @staticmethod
+    async def _condense(llm, text: str) -> str:
+        async def call():
+            resp = await llm.ainvoke([SystemMessage(content=MAP_PROMPT), HumanMessage(content=text)])
+            return ToolLogic._content_to_text(resp.content)
+        return await ToolLogic._retry(call)
+
+    @staticmethod
+    async def run_document(tool: str, config: ProviderConfig, text: str, filename: str,
+                           severity: str = "constructive_colleague", tavily_api_key: Optional[str] = None):
+        budget = settings.TOOL_CHAR_BUDGET or (14000 if config.provider == "groq" else 60000)
+        text = ToolLogic._strip_references(text).strip()
+        if not text:
+            raise ValueError("The document contains no readable text")
+
+        async def run_tool(t: str, tavily: Optional[str]):
+            if tool == "sifter":
+                return await ToolLogic.sifter(config, t, tavily)
+            if tool == "critique":
+                return await ToolLogic.critique(config, t, severity, tavily)
+            return await ToolLogic.jargon(config, t, tavily)
+
+        # Short enough: run the tool directly
+        if len(text) <= budget:
+            return await ToolLogic._retry(lambda: run_tool(text, tavily_api_key))
+
+        chunks = RecursiveCharacterTextSplitter(chunk_size=budget, chunk_overlap=300).split_text(text)
+        if len(chunks) > settings.TOOL_MAX_PARTS:
+            raise DocumentTooLongError(
+                f"Document is too long ({len(chunks)} parts, limit {settings.TOOL_MAX_PARTS}). "
+                "Upload a shorter excerpt or raise TOOL_MAX_PARTS."
+            )
+
+        # Jargon: translate each part, then stitch
+        if tool == "jargon":
+            parts = []
+            for i, chunk in enumerate(chunks, 1):
+                logger.info(f"jargon: part {i}/{len(chunks)} of {filename}")
+                out = await ToolLogic._retry(lambda c=chunk: run_tool(c, None))
+                parts.append(f"### Part {i} of {len(chunks)}\n\n{out}")
+            return "\n\n".join(parts)
+
+        # Sifter / Critique: condense every part, then analyze the whole
+        llm = ProviderFactory.get_llm(config)
+        notes = []
+        for i, chunk in enumerate(chunks, 1):
+            logger.info(f"{tool}: condensing part {i}/{len(chunks)} of {filename}")
+            notes.append(await ToolLogic._condense(llm, chunk))
+        combined = "\n\n".join(notes)
+
+        merger = RecursiveCharacterTextSplitter(chunk_size=budget, chunk_overlap=0)
+        for _ in range(3):
+            if len(combined) <= budget - HEAD_CHARS:
+                break
+            logger.info(f"{tool}: merging notes for {filename}")
+            combined = "\n\n".join([await ToolLogic._condense(llm, p) for p in merger.split_text(combined)])
+        combined = combined[: max(budget - HEAD_CHARS, 2000)]
+
+        user_input = (
+            f"Document: {filename}\n"
+            "The paper was too long to read at once. Below are its opening text (title and abstract) "
+            "followed by condensed notes from every part of the paper. Analyze the whole paper from these.\n\n"
+            f"--- OPENING TEXT ---\n{text[:HEAD_CHARS]}\n\n--- CONDENSED NOTES ---\n{combined}"
+        )
+        return await ToolLogic._retry(lambda: run_tool(user_input, tavily_api_key))
 
 
 async def log_research(tool_name: str, input_text: str, output_text: str, provider: str, session_id: Optional[str] = None):

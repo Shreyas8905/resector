@@ -29,6 +29,8 @@ class Settings(BaseSettings):
         "EMBEDDING_MODEL_DIR",
         str(_BUNDLED_MODEL) if (_BUNDLED_MODEL / "onnx.tar.gz").exists() else "",
     )
+    TOOL_CHAR_BUDGET: int = int(os.environ.get("TOOL_CHAR_BUDGET", "0"))  # 0 = automatic per provider
+    TOOL_MAX_PARTS: int = int(os.environ.get("TOOL_MAX_PARTS", "25"))     # cost guard for huge documents
 
     class Config:
         env_file = os.path.join(BASE_DIR, ".env")

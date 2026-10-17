@@ -1,14 +1,15 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Depends, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Depends, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 import uuid
 import logging
+import tempfile
 from typing import List, Optional, Generator
 from pydantic import BaseModel, Field
 
 from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model, DocStatus
-from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
+from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research, DocumentTooLongError
 from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings, RateLimitError, UPLOAD_DIR
 from .services.pdf_processor import PDFProcessor
@@ -165,6 +166,63 @@ async def process_jargon(req: ResearchRequest):
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
         logger.error(f"ERROR in jargon: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+MAX_TOOL_UPLOAD_BYTES = 25 * 1024 * 1024
+TOOL_UPLOAD_EXTS = {".pdf", ".txt", ".md"}
+
+
+@app.post("/process/{tool}/upload", response_model=ResearchResponse)
+async def process_tool_upload(
+    tool: str,
+    file: UploadFile = File(...),
+    provider: str = Form(...),
+    api_key: str = Form(...),
+    model_name: Optional[str] = Form(None),
+    tavily_api_key: Optional[str] = Form(None),
+    severity: str = Form("constructive_colleague"),
+):
+    if tool not in ("sifter", "critique", "jargon"):
+        raise HTTPException(status_code=404, detail="Unknown tool")
+
+    filename = os.path.basename(file.filename or "document")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in TOOL_UPLOAD_EXTS:
+        raise HTTPException(status_code=415, detail="Upload a PDF, .txt or .md file")
+
+    data = await file.read()
+    if len(data) > MAX_TOOL_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File is larger than 25 MB")
+
+    try:
+        config = ProviderConfig(provider=provider, api_key=api_key, model_name=model_name or None)
+
+        if ext == ".pdf":
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = tmp.name
+            try:
+                text = await asyncio.to_thread(PDFProcessor(session_id="tools").extract_text, tmp_path)
+            finally:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+        else:
+            text = data.decode("utf-8", errors="ignore")
+
+        tavily_key = tavily_api_key or settings.TAVILY_API_KEY or None
+        output = await ToolLogic.run_document(tool, config, text, filename, severity, tavily_key)
+        await log_research(tool, f"[Document: {filename}] {text[:500]}", output, provider)
+        return ResearchResponse(output=output, provider=provider)
+    except DocumentTooLongError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+    except RateLimitError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"ERROR in {tool} upload: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/search")

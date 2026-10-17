@@ -3,24 +3,15 @@
 import React, { useState } from "react";
 import { FileSearch } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
-
-function getConfig() {
-  try {
-    const saved = localStorage.getItem("resector_config");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch {
-    // Invalid JSON
-  }
-  return { provider: "groq", apiKey: "", modelName: "" };
-}
+import DocumentPicker from "./DocumentPicker";
+import { getConfig, processDocument } from "../lib/documentApi";
 
 export default function SifterTool() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const handleProcess = async () => {
     const config = getConfig();
@@ -29,10 +20,19 @@ export default function SifterTool() {
       setError("Please configure your API key in Settings");
       return;
     }
+    if (!file && !input.trim()) {
+      setError("Paste text or upload a document");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
+
     try {
+      if (file) {
+        setOutput(await processDocument("sifter", file));
+        return; // `finally` below still resets the loading state
+      }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/process/sifter`,
         {
@@ -69,6 +69,7 @@ export default function SifterTool() {
       description="Extract core research questions, methodology, and fatal flaws."
       icon={<FileSearch size={20} />}
     >
+      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <ToolInput
         label="Academic Text"
         placeholder="Paste an abstract or methodology snippet here..."
@@ -82,7 +83,7 @@ export default function SifterTool() {
       )}
       <button
         onClick={handleProcess}
-        disabled={isLoading || !input.trim()}
+        disabled={isLoading || (!input.trim() && !file)}
         className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? "Sifting..." : "Sift Research"}
