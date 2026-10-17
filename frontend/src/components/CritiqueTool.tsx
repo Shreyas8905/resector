@@ -73,6 +73,7 @@ export default function CritiqueTool() {
             api_key: config.apiKey,
             model_name: config.modelName,
             severity: persona,
+            tavily_api_key: config.tavilyApiKey || ""
           }),
         },
       );
@@ -83,7 +84,8 @@ export default function CritiqueTool() {
       }
       setOutput(data.output);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : "Unknown error occurred";
+      const errorMsg =
+        e instanceof Error ? e.message : "Unknown error occurred";
       setError(errorMsg);
       setOutput("");
     } finally {

@@ -127,9 +127,12 @@ async def health_check():
 
 @app.post("/process/sifter", response_model=ResearchResponse)
 async def process_sifter(req: ResearchRequest):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
     config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
     try:
-        output = await ToolLogic.sifter(config, req.text)
+        tavily_key = req.tavily_api_key or settings.TAVILY_API_KEY or None
+        output = await ToolLogic.sifter(config, req.text, tavily_key)
         await log_research("sifter", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:

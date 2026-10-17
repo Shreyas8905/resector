@@ -46,11 +46,12 @@ def web_search(query: str, tavily_api_key: str):
     try:
         from tavily import TavilyClient
         tavily = TavilyClient(api_key=tavily_api_key)
-        response = tavily.search(query=query, search_depth="advanced", max_results=5)
+        response = tavily.search(query=query, search_depth="basic", max_results=3)
 
         results = []
         for res in response.get('results', []):
-            results.append(f"Source: {res.get('url', 'unknown')}\nContent: {res.get('content', '')}")
+            content = (res.get('content') or '')[:600]
+            results.append(f"Source: {res.get('url', 'unknown')}\nContent: {content}")
 
         return "\n\n".join(results) if results else "No results found."
     except ImportError:
@@ -65,36 +66,82 @@ def web_search(query: str, tavily_api_key: str):
 
 class ToolLogic:
     @staticmethod
+    def _content_to_text(content) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(
+                b if isinstance(b, str) else b.get("text", "")
+                for b in content
+                if isinstance(b, str) or (isinstance(b, dict) and b.get("type") == "text")
+            )
+        return str(content)
+
+    @staticmethod
+    def _guidelines(has_search: bool) -> str:
+        if has_search:
+            return (
+                "IMPORTANT GUIDELINES:\n"
+                "1. Use web_search at most 2 times, only for the most important checks. Keep queries short.\n"
+                "2. Cite ONLY information you obtained from web_search, using inline [1], [2], etc.\n"
+                "3. If you cited anything, end with a 'Sources' section listing those URLs. "
+                "Never cite or list sources for claims that come from the user's text.\n"
+            )
+        return (
+            "IMPORTANT GUIDELINES:\n"
+            "1. Web search is unavailable. Work only from the provided text and your general knowledge.\n"
+            "2. Do NOT invent citations, URLs, or references. Mark anything from general knowledge "
+            "as unverified.\n"
+        )
+
+    @staticmethod
+    def _is_too_large(e: Exception) -> bool:
+        from langgraph.errors import GraphRecursionError
+        msg = str(e).lower()
+        return (
+            isinstance(e, GraphRecursionError)
+            or "413" in msg
+            or "request too large" in msg
+            or "tokens per minute" in msg
+        )
+
+    @staticmethod
+    async def _invoke(llm, tools, system_prompt: str, user_input: str) -> str:
+        agent = create_react_agent(llm, tools)
+        system_message = f"{system_prompt}\n\n{ToolLogic._guidelines(bool(tools))}"
+        inputs = {"messages": [SystemMessage(content=system_message), HumanMessage(content=user_input)]}
+        result = await agent.ainvoke(inputs, config={"recursion_limit": 10})
+        return ToolLogic._content_to_text(result["messages"][-1].content)
+
+    @staticmethod
     async def _run_agent(config: ProviderConfig, system_prompt: str, user_input: str, tavily_api_key: Optional[str] = None):
         llm = ProviderFactory.get_llm(config)
 
-        # Only provide the search tool if a key is available
         tools = []
         if tavily_api_key and tavily_api_key.strip():
-            # We wrap the search tool to automatically inject the API key
+            search_calls = {"n": 0}
+            
             def search_with_key(query: str):
+                if search_calls["n"] >= 2:
+                    return ("Search limit reached. Do not search again. "
+                            "Write your final answer now using what you already have.")
+                search_calls["n"] += 1
                 return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
 
-            # Re-define as a tool for the agent
             tools.append(Tool(
                 name="web_search",
                 func=search_with_key,
                 description="Search the web for academic papers, recent findings, and factual data."
             ))
 
-        agent_executor = create_react_agent(llm, tools)
-
-        full_system_message = (
-            f"{system_prompt}\n\n"
-            "IMPORTANT GUIDELINES:\n"
-            f"1. {'Use the web_search tool to verify facts and find recent papers.' if tools else 'Search is disabled (no API key). Use internal knowledge.'}\n"
-            "2. You MUST provide inline citations using [1], [2], etc., corresponding to the sources you find.\n"
-            "3. You MUST end your response with a 'Sources' section listing all URLs used in the citations."
-        )
-
-        inputs = {"messages": [SystemMessage(content=full_system_message), HumanMessage(content=user_input)]}
-        result = await agent_executor.ainvoke(inputs)
-        return result["messages"][-1].content
+        try:
+            return await ToolLogic._invoke(llm, tools, system_prompt, user_input)
+        except Exception as e:
+            if tools and ToolLogic._is_too_large(e):
+                logger.warning("Request too large with web search; retrying without search")
+                text = await ToolLogic._invoke(llm, [], system_prompt, user_input)
+                return text + "\n\n*Note: web search was skipped because the request exceeded your provider's token limit.*"
+            raise
 
     @staticmethod
     async def sifter(config: ProviderConfig, text: str, tavily_api_key: Optional[str] = None):
