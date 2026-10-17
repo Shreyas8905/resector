@@ -31,7 +31,7 @@ export default function SifterTool() {
     try {
       if (file) {
         setOutput(await processDocument("sifter", file));
-        return; // `finally` below still resets the loading state
+        return; 
       }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/process/sifter`,

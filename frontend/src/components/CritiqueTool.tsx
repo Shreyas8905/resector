@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
+import DocumentPicker from "./DocumentPicker";
+import { getConfig, processDocument } from "../lib/documentApi";
 
 const PERSONAS = [
   {
@@ -32,24 +34,13 @@ const PERSONAS = [
   },
 ];
 
-function getConfig() {
-  try {
-    const saved = localStorage.getItem("resector_config");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch {
-    // Invalid JSON
-  }
-  return { provider: "groq", apiKey: "", modelName: "" };
-}
-
 export default function CritiqueTool() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [persona, setPersona] = useState("constructive_colleague");
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const handleProcess = async () => {
     const config = getConfig();
@@ -58,10 +49,20 @@ export default function CritiqueTool() {
       setError("Please configure your API key in Settings");
       return;
     }
+    if (!file && !input.trim()) {
+      setError("Paste text or upload a document");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
     try {
+      if (file) {
+        setOutput(
+          await processDocument("critique", file, { severity: persona }),
+        );
+        return;
+      }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/process/critique`,
         {
@@ -73,7 +74,7 @@ export default function CritiqueTool() {
             api_key: config.apiKey,
             model_name: config.modelName,
             severity: persona,
-            tavily_api_key: config.tavilyApiKey || ""
+            tavily_api_key: config.tavilyApiKey || "",
           }),
         },
       );
@@ -99,6 +100,7 @@ export default function CritiqueTool() {
       description="Stress-test your hypothesis with a professional peer review."
       icon={<AlertTriangle size={20} />}
     >
+      <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <div className="space-y-6">
         <ToolInput
           label="Hypothesis or Statement"
@@ -137,7 +139,7 @@ export default function CritiqueTool() {
 
         <button
           onClick={handleProcess}
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || (!input.trim() && !file)}
           className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? "Analyzing..." : "Stress Test"}
