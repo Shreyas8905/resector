@@ -94,14 +94,16 @@ class ToolLogic:
         return str(content)
 
     @staticmethod
-    def _guidelines(has_search: bool) -> str:
-        if has_search:
+    def _guidelines(max_searches: int) -> str:
+        if max_searches:
             return (
                 "IMPORTANT GUIDELINES:\n"
-                "1. Use web_search at most 2 times, only for the most important checks. Keep queries short.\n"
-                "2. Cite ONLY information you obtained from web_search, using inline [1], [2], etc.\n"
-                "3. If you cited anything, end with a 'Sources' section listing those URLs. "
-                "Never cite or list sources for claims that come from the user's text.\n"
+                f"1. Use web_search up to {max_searches} times, each with a different focused query "
+                "(for example: prior work, standard methodology, counter-evidence). Name specific "
+                "methods, datasets or claims in the query.\n"
+                "2. Results are numbered [1], [2], ... Cite a claim with its number inline, e.g. "
+                "'This is standard practice [2].' Use only numbers that appeared in search results.\n"
+                "3. Do NOT write a Sources section or paste URLs; the source list is added automatically.\n"
             )
         return (
             "IMPORTANT GUIDELINES:\n"
@@ -122,40 +124,72 @@ class ToolLogic:
         )
 
     @staticmethod
-    async def _invoke(llm, tools, system_prompt: str, user_input: str) -> str:
+    async def _invoke(llm, tools, system_prompt: str, user_input: str, max_searches: int = 0) -> str:
         agent = create_react_agent(llm, tools)
-        system_message = f"{system_prompt}\n\n{ToolLogic._guidelines(bool(tools))}"
+        system_message = f"{system_prompt}\n\n{ToolLogic._guidelines(max_searches)}"
         inputs = {"messages": [SystemMessage(content=system_message), HumanMessage(content=user_input)]}
-        result = await agent.ainvoke(inputs, config={"recursion_limit": 10})
-        return ToolLogic._content_to_text(result["messages"][-1].content)
+        result = await agent.ainvoke(inputs, config={"recursion_limit": 14})
+        text = ToolLogic._content_to_text(result["messages"][-1].content)
+        if text.strip().startswith("Sorry, need more steps"):
+            raise RuntimeError("agent_step_limit")
+        return text
 
     @staticmethod
     async def _run_agent(config: ProviderConfig, system_prompt: str, user_input: str, tavily_api_key: Optional[str] = None):
         llm = ProviderFactory.get_llm(config)
 
+        sources: List[Dict[str, str]] = []
         tools = []
+        max_searches = 0
+
         if tavily_api_key and tavily_api_key.strip():
-            search_calls = {"n": 0}
-            
+            key = tavily_api_key.strip()
+            # Smaller budget on Groq's free tier (8,000 tokens per minute)
+            if config.provider == "groq":
+                max_searches, max_results, snippet = 3, 4, 350
+            else:
+                max_searches, max_results, snippet = 4, 6, 800
+            calls = {"n": 0}
+
             def search_with_key(query: str):
-                if search_calls["n"] >= 2:
+                if calls["n"] >= max_searches:
                     return ("Search limit reached. Do not search again. "
                             "Write your final answer now using what you already have.")
-                search_calls["n"] += 1
-                return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
+                calls["n"] += 1
+                try:
+                    results = ToolLogic._tavily_search(query, key, max_results)
+                except Exception as e:
+                    logger.error(f"Web search error: {e}")
+                    return f"Search error: {e}"
+
+                lines = []
+                for r in results:
+                    url = (r.get("url") or "").strip()
+                    if not url:
+                        continue
+                    idx = next((i for i, s in enumerate(sources, 1) if s["url"] == url), None)
+                    if idx is None:
+                        sources.append({"title": (r.get("title") or url).strip(), "url": url})
+                        idx = len(sources)
+                    lines.append(
+                        f"[{idx}] {sources[idx - 1]['title']}\nURL: {url}\n{(r.get('content') or '')[:snippet]}"
+                    )
+                return "\n\n".join(lines) or "No results found."
 
             tools.append(Tool(
                 name="web_search",
                 func=search_with_key,
-                description="Search the web for academic papers, recent findings, and factual data."
+                description="Search the web for academic papers, recent findings, and factual data. "
+                            "Returns numbered results."
             ))
 
         try:
-            return await ToolLogic._invoke(llm, tools, system_prompt, user_input)
+            text = await ToolLogic._invoke(llm, tools, system_prompt, user_input, max_searches)
+            return ToolLogic._append_sources(text, sources)
         except Exception as e:
             if tools and ToolLogic._is_too_large(e):
                 logger.warning("Request too large with web search; retrying without search")
-                text = await ToolLogic._invoke(llm, [], system_prompt, user_input)
+                text = await ToolLogic._invoke(llm, [], system_prompt, user_input, 0)
                 return text + "\n\n*Note: web search was skipped because the request exceeded your provider's token limit.*"
             raise
 
@@ -292,6 +326,37 @@ class ToolLogic:
             f"--- OPENING TEXT ---\n{text[:HEAD_CHARS]}\n\n--- CONDENSED NOTES ---\n{combined}"
         )
         return await ToolLogic._retry(lambda: run_tool(user_input, tavily_api_key))
+
+    @staticmethod
+    def _tavily_search(query: str, api_key: str, max_results: int):
+        from tavily import TavilyClient
+        resp = TavilyClient(api_key=api_key).search(
+            query=query, search_depth="basic", max_results=max_results
+        )
+        return resp.get("results", [])
+
+    @staticmethod
+    def _append_sources(text: str, sources: List[Dict[str, str]]) -> str:
+        if not sources:
+            return text
+        # Drop any "Sources" section the model wrote itself; ours is built from real results
+        text = re.sub(
+            r"\n+[#*\s]*Sources[*\s:]*\n.*\Z", "", text, flags=re.IGNORECASE | re.DOTALL
+        ).rstrip()
+
+        cited = sorted({int(n) for n in re.findall(r"\[(\d{1,2})\]", text) if 1 <= int(n) <= len(sources)})
+
+        def line(i: int) -> str:
+            s = sources[i - 1]
+            title = s["title"].replace("[", "(").replace("]", ")")
+            return f"- [{i}] [{title}]({s['url']})"
+
+        block = "\n\n---\n**Sources**\n\n" + "\n".join(line(i) for i in cited) if cited else ""
+        others = [i for i in range(1, len(sources) + 1) if i not in cited]
+        if others:
+            heading = "**Also consulted**" if cited else "**Sources consulted**"
+            block += f"\n\n---\n{heading}\n\n" + "\n".join(line(i) for i in others)
+        return text + block
 
 
 async def log_research(tool_name: str, input_text: str, output_text: str, provider: str, session_id: Optional[str] = None):
