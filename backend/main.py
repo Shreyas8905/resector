@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional, Generator
 from pydantic import BaseModel, Field
 
-from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model
+from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model, DocStatus
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research
 from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings, RateLimitError, UPLOAD_DIR
@@ -210,6 +210,13 @@ async def delete_document(doc_id: int, db=Depends(get_db)):
 
         db.delete(doc)
         db.commit()
+        # Remove this document's chunks from ChromaDB
+        try:
+            get_vector_collection().delete(
+                where={"$and": [{"document_id": doc_id}, {"session_id": session_id}]}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to remove Chroma chunks for document {doc_id}: {e}")
 
         # Remove file from disk
         if file_path and os.path.exists(file_path):
@@ -217,9 +224,6 @@ async def delete_document(doc_id: int, db=Depends(get_db)):
                 os.remove(file_path)
             except OSError as e:
                 logger.warning(f"Failed to remove file {file_path}: {e}")
-
-        # Note: In a production app, we'd also remove the chunks from ChromaDB
-        # using the document_id in metadata. For now, we remove the record.
 
         return {"message": "Document deleted successfully"}
     except HTTPException:
