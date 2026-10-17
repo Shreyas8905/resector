@@ -273,18 +273,28 @@ async def upload_pdf(
         doc_record = db.query(Document).filter(Document.id == doc_id).first()
         background_tasks.add_task(processor.process_and_index, doc_id, doc_record.file_path)
 
-    return {"task_id": str(uuid.uuid4()), "doc_ids": doc_ids}
+    task_id = ",".join(str(i) for i in doc_ids)
+    return {"task_id": task_id, "doc_ids": doc_ids}
 
 @app.get("/chat/tasks/{task_id}")
 async def get_task_status(task_id: str, db=Depends(get_db)):
-    # Query documents for the current session (task_id maps to session context)
-    # For now, we return overall progress; ideally task_id would map to specific docs
-    docs = db.query(Document).all()
+    try:
+        ids = [int(x) for x in task_id.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task id")
+
+    docs = db.query(Document).filter(Document.id.in_(ids)).all() if ids else []
     if not docs:
         return {"status": "no_documents", "progress": 0}
 
-    total_progress = sum(d.progress for d in docs) / len(docs)
-    return {"status": "processing", "progress": int(total_progress)}
+    finished = (DocStatus.COMPLETED, DocStatus.FAILED)
+    progress = sum(100 if d.status in finished else d.progress for d in docs) / len(docs)
+
+    if all(d.status in finished for d in docs):
+        status = "failed" if any(d.status == DocStatus.FAILED for d in docs) else "completed"
+    else:
+        status = "processing"
+    return {"status": status, "progress": int(progress)}
 
 @app.post("/chat/message")
 async def chat_message(req: ChatRequest):
