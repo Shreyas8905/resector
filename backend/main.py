@@ -141,9 +141,12 @@ async def process_sifter(req: ResearchRequest):
 
 @app.post("/process/critique", response_model=ResearchResponse)
 async def process_critique(req: ResearchRequest):
+    if not req.text or not req.text.strip():
+            raise HTTPException(status_code=400, detail="Text is required")
     config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
     try:
-        output = await ToolLogic.critique(config, req.text, req.severity)
+        tavily_key = req.tavily_api_key or settings.TAVILY_API_KEY or None
+        output = await ToolLogic.critique(config, req.text, req.severity, tavily_key)
         await log_research("critique", req.text, output, req.provider)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
@@ -152,10 +155,13 @@ async def process_critique(req: ResearchRequest):
 
 @app.post("/process/jargon", response_model=ResearchResponse)
 async def process_jargon(req: ResearchRequest):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
     config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
     try:
         output = await ToolLogic.jargon(config, req.text)
-        await log_research("jargon", req.text, output, req.provider)
+        tavily_key = req.tavily_api_key or settings.TAVILY_API_KEY or None
+        await log_research("jargon", req.text, output, req.provider, tavily_key)
         return ResearchResponse(output=output, provider=req.provider)
     except Exception as e:
         logger.error(f"ERROR in jargon: {str(e)}")
