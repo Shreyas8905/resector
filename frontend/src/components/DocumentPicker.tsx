@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
+import { getAnalyzeFigures, setAnalyzeFigures } from "../lib/figureSettings";
 
 export default function DocumentPicker({
   file,
@@ -13,6 +14,8 @@ export default function DocumentPicker({
   disabled?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const [analyze, setAnalyze] = useState(false);
+  useEffect(() => setAnalyze(getAnalyzeFigures()), []);
   return (
     <div className="flex flex-wrap items-center gap-3 text-sm">
       <input
@@ -45,6 +48,22 @@ export default function DocumentPicker({
             <X size={14} />
           </button>
         </span>
+      )}
+      {file && file.name.toLowerCase().endsWith(".pdf") && (
+        <label
+          className="flex items-center gap-1.5 text-xs opacity-80"
+          title="A vision model reads each figure (about 1 API call per figure). Figures the answer mentions are shown under it."
+        >
+          <input
+            type="checkbox"
+            checked={analyze}
+            onChange={(e) => {
+              setAnalyze(e.target.checked);
+              setAnalyzeFigures(e.target.checked);
+            }}
+          />
+          Analyze figures
+        </label>
       )}
     </div>
   );

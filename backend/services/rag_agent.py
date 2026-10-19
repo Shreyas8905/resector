@@ -8,6 +8,7 @@ from ..tools import web_search
 from ..config import RateLimitError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 import logging
+from .figure_tools import make_find_figures_tool, FIGURE_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,10 @@ class RAGAgent:
         if tavily_api_key:
             tools.append(self._get_web_search_tool(tavily_api_key))
 
+        # Figure search (charts, diagrams) bound to this session; DB session closed after the answer
+        fig_db = SessionLocal()
+        tools.append(make_find_figures_tool(fig_db, get_vector_collection(), self.session_id))
+
         # 2. Create Agent
         agent_executor = create_react_agent(self.llm, tools)
 
@@ -88,7 +93,7 @@ class RAGAgent:
             "3. If you use a paper, cite it as [Paper Doc ID X]. If you use the web, cite it as [Web Source URL].\n"
             "4. Maintain a professional, academic tone. Synthesize information across multiple papers if applicable.\n"
             "5. Be precise. If the information is not available in either source, state it clearly."
-        )
+        ) + FIGURE_PROMPT
 
         # 4. Prepare Input (System Prompt + History + New Message)
         messages = [SystemMessage(content=system_message)] + history + [HumanMessage(content=user_input)]
@@ -100,6 +105,8 @@ class RAGAgent:
             if is_rate_limit_error(e):
                 raise RateLimitError(f"Rate limit exceeded: {str(e)}")
             raise e
+        finally:
+            fig_db.close()
 
     async def _invoke_agent_with_retry(self, agent_executor, messages):
         @retry(

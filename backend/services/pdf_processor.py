@@ -95,7 +95,7 @@ class PDFProcessor:
             for i in range(0, total_chunks, batch_size):
                 batch = chunks[i:i+batch_size]
                 ids = [str(uuid.uuid4()) for _ in batch]
-                metadatas = [{"session_id": self.session_id, "document_id": doc_id} for _ in batch]
+                metadatas = [{"session_id": self.session_id, "document_id": doc_id, "type": "text"} for _ in batch]
 
                 collection.add(
                     documents=batch,

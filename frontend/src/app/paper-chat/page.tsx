@@ -28,6 +28,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PaperGraphView from "@/components/PaperGraphView";
+import { FigureCards, FigureInfo } from "@/components/FigureCards";
+import { getAnalyzeFigures, setAnalyzeFigures } from "@/lib/figureSettings";
 
 interface Session {
   id: string;
@@ -39,6 +41,7 @@ interface Message {
   id?: number;
   role: "user" | "assistant";
   content: string;
+  figures?: FigureInfo[];
   created_at?: string;
 }
 
@@ -85,6 +88,10 @@ export default function PaperChatPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [input, setInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [analyzeFigures, setAnalyzeFiguresState] = useState(false);
+  useEffect(() => {
+    setAnalyzeFiguresState(getAnalyzeFigures());
+  }, []);
   const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionPaneOpen, setIsSessionPaneOpen] = useState(false);
@@ -258,6 +265,16 @@ export default function PaperChatPage() {
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    if (analyzeFigures) {
+      // Opt-in: a vision model reads each figure (about 1 API call per figure).
+      const cfg = JSON.parse(localStorage.getItem("resector_config") || "{}");
+      if (cfg.apiKey) {
+        formData.append("analyze_figures", "true");
+        formData.append("provider", cfg.provider || "groq");
+        formData.append("api_key", cfg.apiKey);
+        if (cfg.modelName) formData.append("model_name", cfg.modelName);
+      }
+    }
 
     try {
       const response = await fetch(
@@ -377,7 +394,7 @@ export default function PaperChatPage() {
       const data = await response.json();
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.answer },
+        { role: "assistant", content: data.answer, figures: data.figures || [] },
       ]);
     } catch (e) {
       setMessages((prev) => [
@@ -576,6 +593,22 @@ export default function PaperChatPage() {
                     </button>
                   )}
 
+                  {/* Opt-in figure analysis (costs API calls) */}
+                  <label
+                    className="hidden lg:flex items-center gap-1.5 text-[11px] text-[var(--muted)] cursor-pointer"
+                    title="A vision model reads each figure in new uploads (about 1 API call per figure, max 30 per paper). Figures are always extracted and searchable by caption."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={analyzeFigures}
+                      onChange={(e) => {
+                        setAnalyzeFiguresState(e.target.checked);
+                        setAnalyzeFigures(e.target.checked);
+                      }}
+                    />
+                    Analyze figures
+                  </label>
+
                   {/* Upload button */}
                   <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-all hover:border-[var(--accent)] hover:bg-[var(--surface-strong)]">
                     <Upload size={13} className="text-[var(--accent)]" />
@@ -767,6 +800,7 @@ export default function PaperChatPage() {
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                       {m.content}
                                     </ReactMarkdown>
+                                    <FigureCards figures={m.figures} />
                                   </div>
                                 )}
                               </div>

@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Depends, Query, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Depends, Query, Form, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
@@ -8,13 +9,18 @@ import tempfile
 from typing import List, Optional, Generator
 from pydantic import BaseModel, Field
 
-from .database import init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model, DocStatus
+from .database import Figure, init_db, SessionLocal, ResearchLog, get_vector_collection, UserSession, Document, ChatMessage, GraphSnapshot, warm_up_embedding_model, DocStatus
 from .tools import ToolLogic, ResearchRequest, ResearchResponse, log_research, DocumentTooLongError
 from .provider_factory import ProviderConfig, ProviderFactory
 from .config import settings, RateLimitError, UPLOAD_DIR
 from .services.pdf_processor import PDFProcessor
 from .services.rag_agent import RAGAgent, get_chat_history, save_chat_message
 from .services.graph_service import GraphService
+from .services.figures import figure_abs_path, delete_document_figures, delete_session_figures
+from .services.figure_job import run_figure_job, FIGURE_JOBS
+from .services.figure_tools import finalize_answer
+from .services.tool_figures import prepare_tool_figures, figure_digest, figures_mentioned, append_figures_markdown
+from .services.vision_models import build_vision_llm, pick_vision_model
 import json
 import asyncio
 
@@ -174,6 +180,7 @@ TOOL_UPLOAD_EXTS = {".pdf", ".txt", ".md"}
 
 @app.post("/process/{tool}/upload", response_model=ResearchResponse)
 async def process_tool_upload(
+    request: Request,
     tool: str,
     file: UploadFile = File(...),
     provider: str = Form(...),
@@ -181,6 +188,7 @@ async def process_tool_upload(
     model_name: Optional[str] = Form(None),
     tavily_api_key: Optional[str] = Form(None),
     severity: str = Form("constructive_colleague"),
+    analyze_figures: bool = Form(False),
 ):
     if tool not in ("sifter", "critique", "jargon"):
         raise HTTPException(status_code=404, detail="Unknown tool")
@@ -197,12 +205,32 @@ async def process_tool_upload(
     try:
         config = ProviderConfig(provider=provider, api_key=api_key, model_name=model_name or None)
 
+        figs: list = []
         if ext == ".pdf":
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(data)
                 tmp_path = tmp.name
             try:
                 text = await asyncio.to_thread(PDFProcessor(session_id="tools").extract_text, tmp_path)
+                # Figures: always extracted (free); described by a vision model only if the user opted in.
+                # Never let a figure problem break the text analysis.
+                try:
+                    vision_llm = None
+                    if analyze_figures:
+                        vision_llm = build_vision_llm(provider, api_key, pick_vision_model(provider, model_name))
+
+                    def _figs():
+                        db_ = SessionLocal()
+                        try:
+                            return prepare_tool_figures(db_, tmp_path, filename, vision_llm)
+                        finally:
+                            db_.close()
+
+                    figs = await asyncio.to_thread(_figs)
+                    text = text + figure_digest(figs)
+                except Exception as fe:
+                    logger.warning(f"Figure extraction skipped for {filename}: {fe}")
+                    figs = []
             finally:
                 try:
                     os.remove(tmp_path)
@@ -213,6 +241,7 @@ async def process_tool_upload(
 
         tavily_key = tavily_api_key or settings.TAVILY_API_KEY or None
         output = await ToolLogic.run_document(tool, config, text, filename, severity, tavily_key)
+        output = append_figures_markdown(output, figures_mentioned(output, figs), str(request.base_url).rstrip("/"))
         await log_research(tool, f"[Document: {filename}] {text[:500]}", output, provider)
         return ResearchResponse(output=output, provider=provider)
     except DocumentTooLongError as e:
@@ -268,6 +297,8 @@ async def delete_document(doc_id: int, db=Depends(get_db)):
 
         db.delete(doc)
         db.commit()
+        delete_document_figures(db, doc_id)
+        FIGURE_JOBS.pop(doc_id, None)
         # Remove this document's chunks from ChromaDB
         try:
             get_vector_collection().delete(
@@ -309,6 +340,11 @@ async def upload_pdf(
     background_tasks: BackgroundTasks,
     session_id: str,
     files: List[UploadFile] = File(...),
+    analyze_figures: bool = Form(False),
+    provider: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    model_name: Optional[str] = Form(None),
+    vision_model: Optional[str] = Form(None),
     db=Depends(get_db)
 ):
     doc_ids = []
@@ -330,6 +366,12 @@ async def upload_pdf(
     for doc_id in doc_ids:
         doc_record = db.query(Document).filter(Document.id == doc_id).first()
         background_tasks.add_task(processor.process_and_index, doc_id, doc_record.file_path)
+        if doc_record.filename.lower().endswith(".pdf"):
+            # Separate job: a figure/vision failure never affects the text index.
+            background_tasks.add_task(
+                run_figure_job, session_id, doc_id, doc_record.filename, doc_record.file_path,
+                analyze_figures, provider, api_key, model_name, vision_model,
+            )
 
     task_id = ",".join(str(i) for i in doc_ids)
     return {"task_id": task_id, "doc_ids": doc_ids}
@@ -354,8 +396,20 @@ async def get_task_status(task_id: str, db=Depends(get_db)):
         status = "processing"
     return {"status": status, "progress": int(progress)}
 
+@app.get("/chat/figures/{figure_id}")
+async def get_figure_image(figure_id: int, db=Depends(get_db)):
+    fig = db.query(Figure).filter(Figure.id == figure_id).first()
+    path = figure_abs_path(fig) if fig else None
+    if not path:
+        raise HTTPException(status_code=404, detail="Figure not found")
+    return FileResponse(path)
+
+@app.get("/chat/documents/{doc_id}/figures-status")
+async def figures_status(doc_id: int):
+    return FIGURE_JOBS.get(doc_id, {"state": "unknown"})
+
 @app.post("/chat/message")
-async def chat_message(req: ChatRequest):
+async def chat_message(req: ChatRequest, db=Depends(get_db)):
     config = ProviderConfig(provider=req.provider, api_key=req.api_key, model_name=req.model_name)
     try:
         # 1. Retrieve history
@@ -365,11 +419,14 @@ async def chat_message(req: ChatRequest):
         agent = RAGAgent(config, req.session_id)
         answer = await agent.chat(req.text, history, req.tavily_api_key)
 
+        # Keep only [[figure:ID]] markers that belong to this session; attach those figures
+        answer, figs = finalize_answer(db, req.session_id, answer)
+
         # 3. Save interaction
         await save_chat_message(req.session_id, "user", req.text)
-        await save_chat_message(req.session_id, "assistant", answer)
+        await save_chat_message(req.session_id, "assistant", answer, citations=json.dumps(figs) if figs else None)
 
-        return {"answer": answer}
+        return {"answer": answer, "figures": figs}
     except RateLimitError as e:
         raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
@@ -384,7 +441,14 @@ async def get_messages(session_id: str, db=Depends(get_db)):
         .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
         .all()
     )
-    return [{"id": m.id, "role": m.role.value, "content": m.content, "created_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
+    def _figs(m):
+        try:
+            v = json.loads(m.citations) if m.citations else []
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
+
+    return [{"id": m.id, "role": m.role.value, "content": m.content, "figures": _figs(m), "created_at": m.created_at.isoformat() if m.created_at else None} for m in messages]
 
 @app.delete("/chat/sessions/{session_id}")
 async def delete_session(session_id: str, db=Depends(get_db)):
@@ -403,6 +467,12 @@ async def delete_session(session_id: str, db=Depends(get_db)):
                 except OSError as e:
                     logger.warning(f"Failed to remove file {doc.file_path}: {e}")
             db.delete(doc)
+
+        delete_session_figures(db, session_id)
+        try:
+            get_vector_collection().delete(where={"session_id": session_id})
+        except Exception as e:
+            logger.warning(f"Failed to remove Chroma vectors for session {session_id}: {e}")
 
         # Delete messages and research logs
         db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)

@@ -1,3 +1,5 @@
+import { getAnalyzeFigures } from "./figureSettings";
+
 export function getConfig() {
   try {
     const saved = localStorage.getItem("resector_config");
@@ -24,6 +26,7 @@ export async function processDocument(
   form.append("api_key", config.apiKey);
   if (config.modelName) form.append("model_name", config.modelName);
   if (config.tavilyApiKey) form.append("tavily_api_key", config.tavilyApiKey);
+  if (file.name.toLowerCase().endsWith(".pdf") && getAnalyzeFigures()) form.append("analyze_figures", "true");
   for (const [k, v] of Object.entries(extra)) form.append(k, v);
 
   // No Content-Type header: the browser sets the multipart boundary itself

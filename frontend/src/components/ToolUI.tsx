@@ -77,7 +77,17 @@ export function ToolOutput({ content, isLoading }: ToolOutputProps) {
 
   return (
     <div className="prose max-w-none rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+          // eslint-disable-next-line @next/next/no-img-element, @typescript-eslint/no-unused-vars
+          img: ({ node, ...props }) => <img {...props} alt={props.alt || ""} className="my-2 max-h-96 rounded bg-white" />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }

@@ -99,6 +99,24 @@ class GraphSnapshot(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class Figure(Base):
+    __tablename__ = "figures"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    document_id = Column(Integer, index=True)
+    filename = Column(String, nullable=True)        # paper the figure came from
+    label = Column(String, index=True)              # "Figure 3"
+    page = Column(Integer)
+    caption = Column(Text)
+    kind = Column(String, nullable=True)            # bar_chart, architecture_diagram, ...
+    description = Column(Text, nullable=True)       # vision-model description
+    facts = Column(Text, nullable=True)             # newline-separated key facts
+    image_path = Column(String)                     # relative to DATA_DIR
+    fallback = Column(Integer, default=0)           # 1 = whole-page render (crop not found)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 # SQLite Setup
 engine = create_engine(
     settings.DATABASE_URL,
