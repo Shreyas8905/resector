@@ -631,6 +631,14 @@ async def get_graph_session(session_id: str, db=Depends(get_db)):
     }
 
 
+# Desktop app: the backend also serves the exported frontend (same origin, no CORS, no fixed API URL).
+# Registered LAST so every API route above takes precedence. Unset on web/Docker/dev.
+_frontend_dir = os.environ.get("FRONTEND_DIR")
+if _frontend_dir and os.path.isdir(_frontend_dir):
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

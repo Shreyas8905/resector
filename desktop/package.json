@@ -1,0 +1,16 @@
+{
+  "name": "resector-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build:frontend": "node scripts/build-frontend.mjs",
+    "build:backend": "python scripts/build_backend.py",
+    "build:all": "npm run build:frontend && npm run build:backend",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "package": "npm run build:all && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

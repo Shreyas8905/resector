@@ -270,7 +270,7 @@ export default function PaperGraphView({
 
     try {
       const { tavilyApiKey, s2ApiKey } = getApiConfig();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const sessionId = graphData?.session_id || `session_${Date.now()}`;
 
       const response = await fetch(`${apiUrl}/api/graph/generate`, {

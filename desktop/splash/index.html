@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReSector</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; place-items: center; font-family: system-ui, "Segoe UI", sans-serif;
+         background: #f7f7f5; color: #1c1c1a; }
+  @media (prefers-color-scheme: dark) { body { background: #151514; color: #ececea; } }
+  main { text-align: center; max-width: 30rem; padding: 2rem; }
+  h1 { font-size: 1.4rem; margin: 1rem 0 .25rem; }
+  p { margin: .25rem 0; opacity: .75; }
+  .spin { width: 28px; height: 28px; margin: 0 auto; border-radius: 50%;
+          border: 3px solid currentColor; border-right-color: transparent; animation: s 0.9s linear infinite; opacity: .6; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  #err { display: none; margin-top: 1rem; padding: .75rem 1rem; border-radius: 8px; text-align: left;
+         background: rgba(200,50,50,.12); border: 1px solid rgba(200,50,50,.4); font-size: .85rem; white-space: pre-wrap; opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <div class="spin" id="spin"></div>
+  <h1>ReSector</h1>
+  <p id="msg">Starting up. The first launch can take a little longer.</p>
+  <div id="err"></div>
+</main>
+<script>
+  // Called by the native shell if the backend fails to start.
+  window.showError = function (text) {
+    document.getElementById("spin").style.display = "none";
+    document.getElementById("msg").textContent = "ReSector could not start.";
+    var e = document.getElementById("err"); e.style.display = "block"; e.textContent = text;
+  };
+</script>
+</body>
+</html>

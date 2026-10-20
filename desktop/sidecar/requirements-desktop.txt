@@ -1,0 +1,23 @@
+# Runtime dependencies for the frozen backend + the freezer.
+# Deliberately omits what the app does not use (sentence-transformers pulls in PyTorch, about 2 GB;
+# psycopg* is PostgreSQL, which the app no longer uses).
+fastapi
+uvicorn
+langchain
+langchain-community
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+langchain-groq
+groq
+sqlalchemy
+chromadb
+pydantic-settings
+python-multipart
+tavily-python
+langgraph
+pymupdf
+networkx
+httpx
+tzdata
+pyinstaller

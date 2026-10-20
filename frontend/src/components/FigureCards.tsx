@@ -13,7 +13,7 @@ export interface FigureInfo {
   url: string; // relative, e.g. /chat/figures/12
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function FigureCards({ figures }: { figures?: FigureInfo[] }) {
   const [open, setOpen] = useState<FigureInfo | null>(null);

@@ -30,7 +30,7 @@ def extract_figures(pdf_path: str, out_dir: str, max_figures: int = 30) -> list:
 
     Never raises for an unreadable page; it just skips it.
     """
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # PyMuPDF (the old `fitz` name is deprecated)
 
     os.makedirs(out_dir, exist_ok=True)
     found, seen = [], set()
