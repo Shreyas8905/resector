@@ -1,86 +1,237 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) and AI coding assistants working in this repository.
+Repository guidance for coding assistants working on ReSector.
 
-## Build and Run Commands
+## Product status
 
-### Docker (Recommended - Compose services)
-- Build and start: `docker-compose up --build`
-- Stop while preserving data: `docker-compose stop` (or `docker-compose down`)
-- View logs: `docker-compose logs -f`
-- Remove persisted data: `docker-compose down -v` (**destructive**)
+ReSector's current product is a Tauri 2 desktop application. The public beta
+release is [`v0.1.0-beta.1`](https://github.com/Shreyas8905/resector/releases/tag/v0.1.0-beta.1),
+published October 21, 2026, with a Windows x64 installer. The desktop app
+packages a PyInstaller FastAPI sidecar and a static Next.js export. Browser and
+Docker workflows remain useful for development.
 
-Compose runs separate `chroma`, `backend`, and `frontend` services. The backend
-uses SQLite and persistent volumes for the database, uploaded documents, vector
-data, and embedding-model cache. Access the app at `http://localhost:3000`;
-the API is available at `http://localhost:8000`.
+The application is local-first:
 
-### Local Development (Without Docker)
-**Infrastructure**
-- The default database is SQLite at `.\user_data\resector.db`.
-- ChromaDB runs embedded by default under `.\user_data\chroma`; set
-  `CHROMA_MODE=http` to use a ChromaDB server.
-- Optional local ChromaDB server: `chroma run --host localhost --port 5000 --path .\user_data\chroma`
+- Desktop data is stored under the platform app-data directory.
+- SQLite is the default relational database.
+- ChromaDB is embedded by default in the desktop sidecar.
+- External LLM, Tavily, OpenAlex, Semantic Scholar, and DOI services are
+  optional network integrations.
+- Never commit API keys, `.env` files, uploads, databases, vector stores, or
+  build artifacts.
 
-**Backend (FastAPI)**
-- Python virtual environment: `.\.venv\Scripts\python.exe` (or `python -m venv .venv`)
-- Install dependencies: `cd backend && pip install -r requirements.txt`
-- Run server: `uvicorn backend.main:app --reload --port 8000`
+## Build and run commands
 
-**Frontend (Next.js 16 / React 19)**
-- Install dependencies: `cd frontend && npm install`
-- Run development server: `npm run dev`
-- Build for production / TypeScript check: `npm run build`
+### Desktop packaging
 
-## Architecture & System Design
+Prerequisites: Node.js 20+, Python 3.12, Rust via rustup, and platform build
+dependencies. Windows builds also require Microsoft C++ Build Tools and
+WebView2.
 
-Resector is a local-first, privacy-preserving academic research workspace with a decoupled Frontend/Backend architecture. The default persistence layer is SQLite plus ChromaDB; external LLM and Tavily calls are optional and configured per user.
+Run these commands from the repository root on Windows:
 
-### Current System Capabilities
-1. **50-Paper Interactive Citation Network & Community Graph**:
-   - Multi-hop recursive citation/reference traversal (OpenAlex + Semantic Scholar + ArXiv/DOI + Tavily fallback).
-   - Cross-citations and bibliographic coupling calculation generating 800+ interconnected chain links.
-   - Louvain community detection assigning 4-8 thematic cluster colors with node importance and shortest-path graph proximity.
-   - Interactive Canvas: D3-reheated titles/importance density sliders, layout switchers (Force Atlas, Clusters, Years), recenter, and GEXF export.
-2. **Immersive Paper Chat & Grounded RAG Agent**:
-   - Multi-document PDF indexing with background chunking and vector search in ChromaDB.
-   - LangGraph ReAct agent loop capable of invoking local vector retrieval and Tavily live web search.
-   - Session management: delete conversations, clear chat history, delete single messages, 1-click clipboard copy, and starter prompt templates.
-   - Strict layout isolation: static pinned header and footer chat bar with independent message feed scrolling.
-3. **Core Research Tools**:
-   - **Methodology Sifter**: Structured extraction of questions, samples, methods, and limitations from text or PDF/TXT/MD uploads.
-   - **Adversarial Critique**: 5-stage Persona Spectrum (Supportive Peer to Hostile Reviewer 2), available for text and document inputs.
-   - **Jargon Simplifier**: Layered technical translation and intuitive analogies, available for text and document inputs.
-   - **Document analysis pipeline**: Long-document chunking/condensation, reference stripping, provider-aware limits, bounded web search, duplicate-source removal, and validated inline citations.
-   - **Research Archive**: Chronological search and filtering of past research interactions.
+```powershell
+python -m venv .venv-desktop
+.\.venv-desktop\Scripts\Activate.ps1
+pip install -r desktop\sidecar\requirements-desktop.txt
+python desktop\scripts\build_backend.py
 
-### Data Flow
-- `Frontend (Next.js)` -> `Backend (FastAPI)` -> `LangGraph ReAct Agent Loop` -> `ChromaDB / Tavily / LLM Providers`
-- `Graph Request` -> `backend/services/graph_service.py` -> `OpenAlex/S2 APIs + NetworkX Graph Algorithms` -> `React Force Graph 2D Canvas`
-- `Document Tool Request` -> `backend/main.py` -> `PDF/text extraction and condensation` -> `LangGraph/Tavily-enabled analysis` -> `ResearchLog`
+Set-Location desktop
+npm install
+npm run build:frontend
+npm run tauri build
+```
 
-### Backend Modules (`backend/`)
-- `main.py`: FastAPI endpoints using Depends-based DB session management, lifespan initialization, CORS with explicit origins, and structured logging. Endpoints include chat sessions/messages, multi-document uploads, document deletion, text/document analysis tools, archive search, and graph snapshots.
-- `services/graph_service.py`: High-throughput academic paper resolver, multi-hop citation graph engine, bibliographic coupling, Louvain modularity clustering, and stable hashing for synthetic IDs.
-- `services/rag_agent.py`: LangGraph ReAct agent with paper retrieval and Tavily search tools. Enum-based role comparison for chat history and retryable-only retry logic.
-- `services/pdf_processor.py`: Async-safe PDF extraction (run_in_executor), text chunking, embedding generation into ChromaDB, with corrupt/password-protected PDF handling.
-- `provider_factory.py`: Hot-swappable LLM adapters (Groq, OpenAI, Anthropic, Gemini) with Pydantic field validators for API key validation.
-- `database.py`: SQLAlchemy 2.0 ORM over SQLite (WAL and foreign keys enabled), timezone-aware datetimes, cascade delete relationships, and embedded/HTTP ChromaDB client initialization.
-- `tools.py`: Academic research tools (Sifter, Critique, Jargon), long-document map/merge processing, provider-aware retry handling, bounded Tavily search, and source validation.
-- `config.py`: Environment settings with env var priority, local data/upload paths, embedding-model configuration, and rate-limit errors.
+The complete packaging shortcut is:
 
-### Frontend Modules (`frontend/src/`)
-- `app/page.tsx`: Main workspace dashboard with sidebar tool switcher and pinned viewport layout.
-- `app/paper-chat/page.tsx`: Immersive paper chat interface with starter cards, multi-document session management, task progress polling, and citation graph toggle. Proper interval cleanup.
-- `components/PaperGraphView.tsx`: Interactive 50-Paper canvas (ForceGraph2D, D3 physics, Louvain color-coded clusters, side drawer metadata, GEXF export).
-- `components/DocumentPicker.tsx`: Shared PDF/TXT/MD picker for the Sifter, Critique, and Jargon tools.
-- `components/SettingsDrawer.tsx`: User API key management for LLM and Tavily providers with guarded JSON.parse, Escape key close, and backdrop click-to-close.
-- `components/ThemeToggle.tsx`: Synchronized dark/light mode toggle with SSR-safe mounting to prevent theme flash.
-- `components/SifterTool.tsx`, `CritiqueTool.tsx`, `JargonTool.tsx`: Research tools supporting pasted text or document uploads, API key pre-validation, persona selection where applicable, loading states, and error display.
-- `components/ResearchHistory.tsx`: Semantic search using GET endpoint with query params, pre-search and error states.
-- `lib/documentApi.ts`: Multipart document upload client shared by the three analysis tools.
+```powershell
+Set-Location desktop
+npm run package
+```
 
-### Docker Setup
-- `Dockerfile`: Backend image used by the API and ChromaDB Compose services.
-- `docker-compose.yml`: Three-service deployment with ChromaDB, SQLite-backed FastAPI, and Next.js frontend, plus persistent volumes and health checks.
-- `.dockerignore`: Build optimization excluding node_modules, `.next`, venv, and other local artifacts.
+Artifacts are written to `desktop\src-tauri\target\release\bundle\`.
+Build installers on the target operating system.
+
+### Desktop development
+
+```powershell
+Set-Location desktop
+npm run dev
+```
+
+This runs the Tauri shell with the locally built backend/frontend resources.
+For UI-only development against the normal Next.js server:
+
+```powershell
+Set-Location frontend
+npm run dev
+
+# In another terminal
+$env:RESECTOR_DEV_URL = "http://localhost:3000"
+Set-Location desktop
+npm run dev
+```
+
+The desktop shell prefers port `47821` and selects a local fallback if that
+port is occupied. `RESECTOR_DEV_URL` skips sidecar startup and navigates the
+webview to the specified development URL.
+
+### Browser/Docker development
+
+```bash
+docker compose up --build
+docker compose stop
+docker compose down
+docker compose down -v  # destructive: removes persisted volumes
+```
+
+Docker runs separate `chroma`, `backend`, and `frontend` services. The browser
+UI is at `http://localhost:3000`; the API is at `http://localhost:8000`.
+
+For local backend/frontend development:
+
+```powershell
+# Backend, from repository root
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --reload --port 8000
+
+# Frontend, in another terminal
+Set-Location frontend
+npm install
+npm run dev
+npm run build
+npm run lint
+```
+
+The normal backend defaults to `user_data\resector.db` and embedded
+`user_data\chroma`. Set `CHROMA_MODE=http` when using a ChromaDB server.
+
+## Desktop architecture
+
+The packaged runtime is:
+
+```text
+Tauri 2 shell
+  -> bundled resector-backend sidecar (PyInstaller)
+      -> FastAPI application
+          -> exported Next.js frontend
+          -> SQLite + ChromaDB + local documents
+          -> optional LLM/Tavily/scholarly APIs
+```
+
+Important lifecycle behavior:
+
+- `desktop/src-tauri/src/main.rs` chooses the port, starts the sidecar with
+  `RESECTOR_PORT`, `DATA_DIR`, and `FRONTEND_DIR`, waits for readiness, and
+  kills the child process on exit.
+- The sidecar binds to `127.0.0.1` only.
+- The backend serves the static frontend in a packaged build, so the desktop
+  frontend uses a same-origin API URL.
+- `desktop/splash/index.html` displays startup progress and backend errors.
+- Frozen backend output is written to `<DATA_DIR>\logs\backend.log`.
+- The embedding model is warmed up during FastAPI lifespan startup; first launch
+  can therefore be slow.
+
+## Current system capabilities
+
+1. **Paper chat and RAG**
+   - Multi-document PDF indexing and progress polling.
+   - Local ChromaDB retrieval with a LangGraph ReAct agent.
+   - Optional Tavily web search.
+   - Session, message, and document lifecycle management.
+2. **Document analysis**
+   - Sifter, Critique, and Jargon tools.
+   - Text, PDF, TXT, and Markdown inputs.
+   - Long-document reference stripping, chunking, condensation, budgets, and
+     maximum-part guards.
+   - Bounded web search, URL de-duplication, and validated numbered sources.
+3. **Citation graph**
+   - OpenAlex/Semantic Scholar traversal, ArXiv/DOI matching, fallback search.
+   - Citation, reference, cross-citation, bibliographic coupling, Louvain
+     communities, importance, proximity, layouts, and GEXF export.
+4. **Archive and configuration**
+   - Semantic research-history search.
+   - Provider selection and validation for Groq, OpenAI, Anthropic, Gemini.
+   - Optional Tavily validation and SSR-safe theme switching.
+
+## Code map
+
+### Desktop
+
+- `desktop/package.json`: Tauri CLI and packaging scripts.
+- `desktop/scripts/build-frontend.mjs`: static Next.js export for the desktop.
+- `desktop/scripts/build_backend.py`: PyInstaller build wrapper.
+- `desktop/sidecar/entry.py`: frozen backend entry point and logging.
+- `desktop/sidecar/resector_backend.spec`: PyInstaller specification.
+- `desktop/sidecar/requirements-desktop.txt`: lean packaged-runtime
+  dependencies.
+- `desktop/src-tauri/src/main.rs`: native lifecycle and sidecar orchestration.
+- `desktop/src-tauri/tauri.conf.json`: window, resources, icons, and bundles.
+
+### Backend
+
+- `backend/main.py`: FastAPI lifecycle, validation, tools, uploads, chat,
+  sessions, documents, archive, and graph endpoints.
+- `backend/config.py`: environment settings, data paths, Chroma mode, model
+  path, and analysis limits.
+- `backend/database.py`: SQLAlchemy models, SQLite pragmas, and Chroma client
+  singleton.
+- `backend/provider_factory.py`: provider adapters and key validation.
+- `backend/tools.py`: academic tools, search budgets, long-document processing,
+  retry policy, and source handling.
+- `backend/services/pdf_processor.py`: extraction, chunking, embedding, and
+  indexing.
+- `backend/services/rag_agent.py`: paper-chat agent and retrieval tools.
+- `backend/services/graph_service.py`: graph resolution and network analysis.
+
+### Frontend
+
+- `frontend/src/app/page.tsx`: main workspace.
+- `frontend/src/app/paper-chat/page.tsx`: paper-chat workflow.
+- `frontend/src/components/PaperGraphView.tsx`: citation graph.
+- `frontend/src/components/SifterTool.tsx`: methodology analysis.
+- `frontend/src/components/CritiqueTool.tsx`: persona critique.
+- `frontend/src/components/JargonTool.tsx`: jargon simplification.
+- `frontend/src/components/DocumentPicker.tsx`: shared document selection.
+- `frontend/src/components/SettingsDrawer.tsx`: provider/Tavily settings.
+- `frontend/src/components/ResearchHistory.tsx`: archive search.
+- `frontend/src/lib/documentApi.ts`: document multipart client.
+- `frontend/next.config.ts`: `DESKTOP_BUILD=1` static-export behavior.
+
+## Data locations
+
+Desktop:
+
+- Windows: `%APPDATA%\com.resector.app`
+- macOS: `~/Library/Application Support/com.resector.app`
+- Linux: `~/.local/share/com.resector.app`
+
+Development:
+
+- SQLite: `user_data\resector.db`
+- Embedded ChromaDB: `user_data\chroma`
+- Uploaded files: `user_data\uploads`
+
+Do not delete user data or run `docker compose down -v` unless explicitly
+requested. Do not revert unrelated worktree changes.
+
+## Change and validation guidelines
+
+- Prefer precise, surgical changes and preserve existing behavior.
+- Read nearby code and reuse existing helpers before adding new logic.
+- Keep errors explicit; do not hide provider, upload, or startup failures.
+- When changing desktop packaging, validate both the frozen backend and the
+  Tauri bundle path.
+- When changing frontend code, run the smallest relevant TypeScript/build or
+  lint command.
+- When changing backend code, run focused tests or import/type checks where
+  available.
+- Keep user-facing documentation synchronized with desktop build behavior.
+- Do not add secrets or personal `.env` files to source control.
+
+## Known beta limitations
+
+- The published installer currently targets Windows x64 only.
+- Installers are unsigned and may trigger SmartScreen/Gatekeeper warnings.
+- API keys are stored in webview local storage; OS keychain storage is planned.
+- First launch may be slow while the embedding model is initialized.

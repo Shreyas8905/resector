@@ -1,148 +1,222 @@
-# Resector: Local-First Academic Research Companion
+# ReSector: Project Blueprint
 
-Resector is an advanced, local-first research workstation engineered to transform how researchers interact with scientific literature, citations, and the web. By combining a decoupled Frontend/Backend architecture with agentic RAG (Retrieval-Augmented Generation), recursive citation graph modeling, and customizable AI personas, Resector enables researchers to conduct rigorous deep-dive investigations with high precision, grounded inline citations, and visual literature cartography.
+## Current release status
 
-## 📌 Current Project Status
+**Status date:** October 21, 2026
+**Release:** [`v0.1.0-beta.1`](https://github.com/Shreyas8905/resector/releases/tag/v0.1.0-beta.1)
+**Product state:** First public desktop beta
 
-**Status date: October 18, 2026**
+ReSector has moved from a browser-first research workspace to a distributable
+desktop application. The beta is packaged for Windows x64 as
+`ReSector_0.1.0_x64-setup.exe`. The application is functional end to end, but
+it is still a beta release: installers are unsigned, macOS/Linux artifacts are
+not published, and users should report defects through GitHub Issues.
 
-The current branch contains the working research workspace, including the citation
-graph, grounded paper chat, research archive, and all three academic analysis
-tools. The latest work focused on making document analysis practical and
-source-aware:
+The desktop product bundles a Tauri 2 shell, a PyInstaller-frozen FastAPI
+backend, and a static export of the Next.js frontend. The backend runs locally
+on `127.0.0.1`, uses SQLite and embedded ChromaDB by default, and writes data
+to the platform app-data directory. Provider APIs remain optional and require
+the user's own credentials.
 
-- PDF, TXT, and Markdown uploads are supported by the Sifter, Critique, and
-  Jargon tools, with a shared document picker and multipart upload endpoint.
-- Large documents are processed with reference-section removal, bounded
-  chunking, map/merge condensation, provider-aware character budgets, and an
-  explicit maximum-part guard.
-- Optional Tavily search is available to all three tools. Search calls are
-  capped per provider, duplicate URLs are de-duplicated, and model-generated
-  inline source numbers are reconciled with a validated source list.
-- Oversized provider requests fall back to a no-search run with an explicit
-  user-facing note; rate-limit retries remain limited to retryable errors.
-- Document deletion now removes both the relational record and its associated
-  ChromaDB chunks.
-- The default local persistence path is SQLite under `user_data/`, while
-  ChromaDB can run embedded or as the Compose `chroma` service.
-- Docker Compose now runs separate `chroma`, `backend`, and `frontend` services
-  with persistent volumes and health checks. The previous all-in-one image and
-  PostgreSQL-first documentation are no longer the current deployment model.
+## Product goals
 
----
+- Give researchers one focused workspace for paper discovery, document
+  understanding, and claim evaluation.
+- Keep documents, indexes, sessions, and logs local by default.
+- Make external model/search calls explicit, configurable, and bounded.
+- Produce research outputs that distinguish local evidence from web evidence.
+- Turn citation relationships into an explorable, exportable literature map.
 
-## 🚀 Key Features
+## Current capabilities
 
-### 1. 50-Paper Recursive Citation Network & Community Graph
-- **Multi-Source Academic Traversal**: Queries OpenAlex (250M+ scholarly works) and Semantic Scholar API with ArXiv/DOI matching and Tavily scholarly web fallback to reliably aggregate 50–60 connected peer-reviewed papers.
-- **Bibliographic Coupling & Cross-Citations**: Detects shared references (Jaccard similarity ≥ 0.035) and cross-citations across all candidate works, generating 800+ interconnected chain links rather than isolated star graphs.
-- **Louvain Modularity Clustering**: Automatically partitions citation networks into 4–8 distinct thematic communities, assigning distinct vibrant color palettes (Orange, Green, Purple, Blue, Red, Brown, Yellow, Teal).
-- **Proximity Distance & Importance Metrics**: Root paper pinning, multi-hop shortest path graph distances, and normalized citation/reference importance scores.
-- **Interactive D3 Physics Canvas**: Real-time `Titles` density threshold slider, `Importance` size scaling with live D3 reheat simulation, layout presets (`Force Atlas`, `Clusters`, `Years`), and `Export GEXF` for Gephi analysis.
+### 1. Desktop application
 
-### 2. Immersive Paper Chat & Grounded RAG Agent
-- **Multi-Document PDF Indexing**: Upload and batch process multiple scientific PDFs with PyMuPDF text chunking, local vector embedding, and session-scoped ChromaDB collections.
-- **LangGraph ReAct Agent Loop**: Iteratively reasons whether to query local paper vectors or search the live web via Tavily for contemporary verification.
-- **Complete Conversation Lifecycle**: Create named research sessions, delete entire sessions with cascading file cleanup, clear chat history, delete single messages, copy markdown outputs, and filter session history.
-- **Starter Analytical Prompts**: Instant 1-click queries for core finding synthesis, methodological critiques, metric comparisons, and future work extraction.
-- **Isolated Viewport Layout**: Pinned header and footer input bar with independently scrolling conversation feed.
+- Tauri 2 native window with a startup splash and backend readiness check.
+- PyInstaller sidecar starts the FastAPI service without a separate Python
+  installation for end users.
+- Preferred local origin `http://127.0.0.1:47821`; random fallback only when the
+  preferred port is unavailable.
+- Same-origin frontend/backend in packaged builds; no API URL is baked into the
+  desktop frontend.
+- Backend logs are written to `<app-data>\logs\backend.log`.
+- Clean sidecar shutdown when the desktop window exits.
+- Windows x64 installer published in the beta release.
 
-### 3. Core Academic Analysis Tools
-- **Methodology Sifter**: Structured extraction pipeline extracting core research questions, sample sizes, experimental setups, and fatal methodological flaws from pasted text or uploaded documents.
-- **Persona Spectrum (Critique Tool)**: 5-stage critical tone spectrum—from Supportive Peer to Hostile Reviewer 2.
-- **Jargon Simplifier**: Layered technical translation bridging dense mathematical and scientific terminology to intuitive analogies.
-- **Shared document workflow**: All three tools accept PDF, TXT, and Markdown uploads, including long-document chunking and optional web verification.
-- **Research Archive**: Chronological search, tag filtering, and inspection of past analytical queries.
+### 2. Paper chat and RAG
 
----
+- Named research sessions with cascading message/document cleanup.
+- Batch PDF upload, text extraction, chunking, embedding, and progress polling.
+- Session-scoped ChromaDB retrieval for grounded answers.
+- LangGraph ReAct workflow with local retrieval and optional Tavily search.
+- Delete individual documents and remove their ChromaDB chunks and local files.
+- Delete sessions, clear history, delete individual messages, and copy
+  Markdown responses.
+- Starter cards for findings, methods, comparisons, and future work.
+- Citation graph toggle connected to the paper-chat experience.
 
-## 🏗️ Architecture & Data Flow
+### 3. Academic analysis tools
+
+- **Methodology Sifter:** research questions, methodology, sample size,
+  findings/metrics, and fatal flaws or limitations.
+- **Adversarial Critique:** Supportive Peer, Constructive Colleague, Rigorous
+  Scholar, Brutal Reviewer #2, and Devil's Advocate personas.
+- **Jargon Simplifier:** plain-English breakdowns and memorable analogies.
+- All three tools accept pasted text and PDF/TXT/Markdown uploads.
+- Long documents use reference-section stripping, bounded recursive chunking,
+  map/merge condensation, provider-specific budgets, and maximum-part guards.
+- Optional Tavily search uses a bounded call budget, focused queries, duplicate
+  URL removal, and numbered source reconciliation.
+- Oversized search-enabled requests retry once without web search and expose an
+  explicit note rather than silently pretending web evidence was used.
+
+### 4. Citation graph
+
+- Multi-hop paper traversal through OpenAlex and Semantic Scholar.
+- ArXiv/DOI matching and Tavily scholarly fallback.
+- Citation, reference, cross-citation, and bibliographic-coupling edges.
+- Up to 50-paper graph view with shortest-path proximity and importance scores.
+- Louvain community detection with 4-8 thematic cluster colors.
+- Force Atlas, Clusters, and Years layouts.
+- Title-density and importance controls, simulation reheating, recentering, and
+  GEXF export.
+
+### 5. Archive and settings
+
+- Local semantic search over prior research logs.
+- Chronological archive browsing and filtering.
+- Provider selection for Groq, OpenAI, Anthropic, and Google Gemini.
+- Optional Tavily API-key validation.
+- SSR-safe theme switching and guarded persisted configuration parsing.
+
+## Runtime architecture
 
 ```mermaid
 graph TD
-    User[Researcher] --> Frontend[Next.js 16 + React 19 Frontend]
-    Frontend --> API[FastAPI Orchestrator]
-    
-    subgraph "Paper Chat & RAG Engine"
-        API --> RAG[LangGraph ReAct Agent]
-        RAG --> ChromaDB[(ChromaDB Vector Store)]
-        RAG --> Tavily[Tavily Search API]
-        RAG --> LLMs[Groq / OpenAI / Anthropic / Gemini]
-    end
-
-    subgraph "Literature Citation Graph Engine"
-        API --> GraphService[Graph Service]
-        GraphService --> OpenAlex[OpenAlex API]
-        GraphService --> S2[Semantic Scholar API]
-        GraphService --> NetworkX[NetworkX Graph Analytics]
-        NetworkX --> Louvain[Louvain Modularity & Distance]
-    end
-
-    subgraph "Persistence Layer"
-        API --> SQLite[(SQLite Relational DB)]
-        SQLite --> UserSessions[User Sessions & Messages]
-        SQLite --> GraphSnapshots[Graph Snapshots]
-        SQLite --> Documents[Document Metadata]
-    end
+    Shell[Tauri 2 shell] --> Backend[PyInstaller FastAPI sidecar]
+    Backend --> Frontend[Static Next.js export]
+    Backend --> DB[(SQLite)]
+    Backend --> Vector[(Embedded ChromaDB)]
+    Backend --> Docs[App-data documents and logs]
+    Backend --> Agent[LangGraph / LangChain]
+    Agent --> Providers[Groq / OpenAI / Anthropic / Gemini]
+    Agent -. optional .-> Tavily[Tavily]
+    Backend --> GraphSvc[GraphService]
+    GraphSvc --> Scholarly[OpenAlex / Semantic Scholar / ArXiv / DOI]
+    GraphSvc --> NetworkX[NetworkX + Louvain]
 ```
 
----
+### Desktop startup sequence
 
-## 🐳 Deployment
+1. Tauri loads the splash page.
+2. The shell selects port `47821`, or a free local fallback.
+3. The bundled `resector-backend` sidecar receives `RESECTOR_PORT`,
+   `DATA_DIR`, and `FRONTEND_DIR`.
+4. The shell waits for the backend socket to become ready, including startup
+   initialization and embedding-model warm-up.
+5. The webview navigates to the local backend, which serves the exported UI.
+6. On exit, the shell terminates the sidecar.
 
-Resector uses Docker Compose with separate `chroma`, `backend`, and `frontend`
-services. SQLite, uploaded documents, ChromaDB data, and the embedding-model
-cache are persisted in named volumes.
+### Data storage
+
+| Data | Desktop location |
+| --- | --- |
+| SQLite database, uploads, ChromaDB, logs | Windows `%APPDATA%\com.resector.app` |
+| SQLite database, uploads, ChromaDB, logs | macOS `~/Library/Application Support/com.resector.app` |
+| SQLite database, uploads, ChromaDB, logs | Linux `~/.local/share/com.resector.app` |
+
+The default web development path uses `user_data\resector.db` and
+`user_data\chroma`. Docker maps those resources to persistent volumes and runs
+ChromaDB as a separate service.
+
+## Repository map
+
+### Desktop
+
+- `desktop/package.json`: desktop build, development, and packaging scripts.
+- `desktop/scripts/build-frontend.mjs`: builds the frontend in static-export
+  mode with same-origin API configuration.
+- `desktop/scripts/build_backend.py`: freezes the backend with PyInstaller.
+- `desktop/sidecar/entry.py`: packaged backend entry point and log setup.
+- `desktop/sidecar/resector_backend.spec`: PyInstaller bundle definition.
+- `desktop/sidecar/requirements-desktop.txt`: runtime dependencies for the
+  frozen backend.
+- `desktop/src-tauri/src/main.rs`: Tauri lifecycle, port selection, sidecar
+  startup, readiness polling, error display, and shutdown.
+- `desktop/src-tauri/tauri.conf.json`: app identity, window, resources, icons,
+  and bundle targets.
+- `desktop/splash/index.html`: startup and backend-error screen.
+
+### Backend
+
+- `backend/main.py`: FastAPI lifecycle, CORS, validation, text/document tool
+  endpoints, chat/session endpoints, upload processing, archive search, and
+  graph routes.
+- `backend/config.py`: environment settings, data directories, SQLite default,
+  ChromaDB mode/path, embedding model, and document-analysis limits.
+- `backend/database.py`: SQLAlchemy models, SQLite WAL/foreign-key setup, and
+  embedded/HTTP ChromaDB client initialization.
+- `backend/provider_factory.py`: provider adapters and API-key validation.
+- `backend/tools.py`: Sifter, Critique, Jargon, bounded search, long-document
+  condensation, retries, and source validation.
+- `backend/services/pdf_processor.py`: asynchronous PDF extraction, chunking,
+  embedding, ChromaDB indexing, and document status updates.
+- `backend/services/rag_agent.py`: grounded paper-chat agent and local/web
+  retrieval tools.
+- `backend/services/graph_service.py`: scholarly paper resolution, graph
+  traversal, coupling, citations, Louvain clusters, and exports.
+
+### Frontend
+
+- `frontend/src/app/page.tsx`: main workspace and tool switcher.
+- `frontend/src/app/paper-chat/page.tsx`: paper-chat sessions, upload polling,
+  starter prompts, and graph integration.
+- `frontend/src/components/PaperGraphView.tsx`: interactive graph canvas.
+- `frontend/src/components/SifterTool.tsx`: methodology analysis UI.
+- `frontend/src/components/CritiqueTool.tsx`: persona critique UI.
+- `frontend/src/components/JargonTool.tsx`: jargon translation UI.
+- `frontend/src/components/DocumentPicker.tsx`: shared PDF/TXT/MD picker.
+- `frontend/src/components/SettingsDrawer.tsx`: provider and Tavily settings.
+- `frontend/src/components/ResearchHistory.tsx`: archive search and results.
+- `frontend/src/lib/documentApi.ts`: multipart document upload client.
+- `frontend/next.config.ts`: desktop static-export switch controlled by
+  `DESKTOP_BUILD=1`.
+
+### Deployment
+
+- `Dockerfile`: backend/ChromaDB image.
+- `docker-compose.yml`: ChromaDB, backend, and frontend services.
+- `SETUP.md`: browser/Docker development instructions.
+
+## Build and validation
+
+### Desktop packaging
+
+```powershell
+python -m venv .venv-desktop
+.\.venv-desktop\Scripts\Activate.ps1
+pip install -r desktop\sidecar\requirements-desktop.txt
+python desktop\scripts\build_backend.py
+Set-Location desktop
+npm install
+npm run build:frontend
+npm run tauri build
+```
+
+### Web development
 
 ```bash
-docker-compose up --build
-# Frontend: http://localhost:3000
-# Backend:  http://localhost:8000
+cd backend && pip install -r requirements.txt
+uvicorn backend.main:app --reload --port 8000
+
+cd frontend && npm install && npm run dev
 ```
 
-For local development without Docker (running each service separately), see [SETUP.md](./SETUP.md).
+### Known beta limitations
 
----
-
-## 📂 File Directory & Purpose
-
-### 📁 Root
-- `docker-compose.yml`: Compose orchestration for ChromaDB, the FastAPI backend, and the Next.js frontend.
-- `Dockerfile`: Backend image used by the API and ChromaDB services.
-- `.dockerignore`: Build optimization to exclude unnecessary files.
-- `CLAUDE.md`: AI assistant operational manual and quick commands.
-- `PROJECT.md`: Comprehensive project blueprint, architecture, and feature index.
-- `README.md`: Public-facing engineering documentation and architecture diagrams.
-- `SETUP.md`: Detailed environment configuration and onboarding instructions.
-
-### 📁 backend/
-- `main.py`: FastAPI server with Depends-based DB session management, lifespan initialization, explicit CORS origins, structured logging, text/document tool processing, chat sessions, document lifecycle, and graph endpoints.
-- `config.py`: Centralized environment configurations with env var priority and rate limit error handlers.
-- `database.py`: SQLAlchemy 2.0 ORM models (`UserSession`, `ChatMessage`, `Document`, `ResearchLog`, `GraphSnapshot`) backed by SQLite with WAL/foreign-key pragmas, cascade relationships, and thread-safe embedded/HTTP ChromaDB initialization.
-- `provider_factory.py`: Pluggable LLM factory supporting Groq, OpenAI, Anthropic, and Google Gemini with Pydantic API key validation.
-- `tools.py`: Academic research tools (Sifter, Critique, Jargon), provider-aware retries, long-document condensation, bounded Tavily search, and validated inline source handling.
-- `requirements.txt`: Python package specifications.
-- **📁 services/**
-  - `graph_service.py`: High-throughput citation engine (OpenAlex, Semantic Scholar, NetworkX, Louvain clustering, Bibliographic coupling) with structured logging and stable hashing.
-  - `rag_agent.py`: LangGraph ReAct agent loop with enum-based role comparison for chat history and retryable-error-only retry logic.
-  - `pdf_processor.py`: Async-safe PDF extraction (run_in_executor), semantic chunking, ChromaDB vector indexing, and corrupt/password-protected PDF handling.
-
-### 📁 frontend/
-- `package.json`: Next.js 16, React 19, Tailwind CSS 4, Lucide icons, `react-markdown`, and `react-force-graph-2d`.
-- **📁 src/app/**
-  - `page.tsx`: Main workspace container with fixed viewport, sidebar switcher, and theme provider.
-  - `layout.tsx`: Root HTML layout.
-  - `globals.css`: Academic high-contrast design system and CSS variables.
-  - **📁 paper-chat/**
-    - `page.tsx`: Immersive paper chat interface, starter prompt cards, session management, proper interval cleanup, and 50-Paper network integration.
-- **📁 src/components/**
-  - `PaperGraphView.tsx`: Interactive 50-Paper citation graph canvas with D3 physics reheat, Louvain community clusters, titles/importance sliders, and GEXF export.
-  - `SifterTool.tsx`: UI for structured research methodology extraction from pasted text or an uploaded PDF/TXT/MD document.
-  - `CritiqueTool.tsx`: UI for the 5-stage Persona Spectrum academic critique with text/document input and API key pre-validation.
-  - `JargonTool.tsx`: UI for technical jargon translation with text/document input and API key pre-validation.
-  - `DocumentPicker.tsx`: Shared document selection control used by all three analysis tools.
-  - `ToolUI.tsx`: Shared tool layout, input, loading, and Markdown output components.
-  - `ResearchHistory.tsx`: Historical query archive using GET endpoint with query params and error states.
-  - `SettingsDrawer.tsx`: User API key vault with guarded JSON.parse, Escape key close, and backdrop click-to-close.
-  - `ThemeToggle.tsx`: Synchronized Dark/Light mode switcher with SSR-safe mounting.
-  - `../lib/documentApi.ts`: Multipart document upload client and persisted provider/Tavily configuration reader.
+- Only the Windows x64 installer is currently published.
+- Installers are unsigned and may trigger OS security warnings.
+- API keys currently live in webview local storage; OS keychain integration is
+  not yet implemented.
+- First launch can take longer while the embedding model initializes.
+- External providers and scholarly APIs require network access and valid keys
+  where applicable.
