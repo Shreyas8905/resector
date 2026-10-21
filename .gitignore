@@ -10,8 +10,13 @@ chromadb_data/
 reset_db.py
 user_data/
 backend/models/all-MiniLM-L6-v2/onnx/
-.venv-desktop
-build-tmp/
+desktop/build/
+desktop/build-tmp/
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+frontend/out/
+.venv-desktop/
 
 # Environment variables
 .env

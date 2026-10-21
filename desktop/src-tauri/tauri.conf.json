@@ -30,8 +30,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../build/backend/**/*": "backend/",
-      "../build/frontend/**/*": "frontend/"
+      "../build/backend": "backend",
+      "../build/frontend": "frontend"
     }
   }
 }
