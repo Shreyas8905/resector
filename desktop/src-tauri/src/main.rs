@@ -9,6 +9,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_updater::UpdaterExt;
 
 /// Port tried first. A stable origin matters: the UI keeps its settings in the webview's
 /// localStorage, which is per origin (scheme + host + PORT). A random port every launch would
@@ -87,6 +89,42 @@ fn wait_ready(app: &AppHandle, port: u16) -> Result<(), String> {
     }
 }
 
+fn kill_backend(app: &AppHandle) {
+    if let Some(mut child) = app.state::<Backend>().0.lock().unwrap().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
+/// Asks GitHub Releases (see plugins.updater in tauri.conf.json) whether a newer signed version exists.
+/// If so, asks the user; on "Update now" it downloads, stops the backend (Windows cannot overwrite a
+/// running exe), installs and restarts. Network problems are ignored: the app just keeps working.
+async fn check_for_update(app: AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let Some(update) = app.updater()?.check().await? else {
+        return Ok(());
+    };
+    let notes: String = update.body.clone().unwrap_or_default().chars().take(600).collect();
+    let msg = format!(
+        "ReSector {} is available (you have {}).\n\n{}\n\nYour data and settings are kept.",
+        update.version,
+        app.package_info().version,
+        notes
+    );
+    let accepted = app
+        .dialog()
+        .message(msg)
+        .title("Update available")
+        .buttons(MessageDialogButtons::OkCancelCustom("Update now".into(), "Later".into()))
+        .blocking_show();
+    if !accepted {
+        return Ok(());
+    }
+    let bytes = update.download(|_chunk, _total| {}, || {}).await?;
+    kill_backend(&app);
+    update.install(bytes)?;
+    app.restart() // on Windows install() already exited the process and the installer relaunches the app
+}
+
 fn goto(window: &WebviewWindow, url: &str) {
     let _ = window.eval(&format!("window.location.replace({})", serde_json::to_string(url).unwrap()));
 }
@@ -112,13 +150,21 @@ fn launch(app: AppHandle) {
     }
 
     match start_backend(&app).and_then(|port| wait_ready(&app, port).map(|_| port)) {
-        Ok(port) => goto(&window, &format!("http://127.0.0.1:{port}/")),
+        Ok(port) => {
+            goto(&window, &format!("http://127.0.0.1:{port}/"));
+            thread::sleep(Duration::from_secs(4)); // let the UI appear before any prompt
+            if let Err(e) = tauri::async_runtime::block_on(check_for_update(app.clone())) {
+                eprintln!("update check skipped: {e}");
+            }
+        }
         Err(e) => show_error(&window, &app, &e),
     }
 }
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(Backend(Mutex::new(None)));
             let handle = app.handle().clone();
@@ -129,10 +175,7 @@ fn main() {
         .expect("error while building ReSector")
         .run(|app, event| {
             if let RunEvent::Exit = event {
-                if let Some(mut child) = app.state::<Backend>().0.lock().unwrap().take() {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                }
+                kill_backend(app);
             }
         });
 }
