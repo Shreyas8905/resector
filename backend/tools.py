@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, List, Annotated
 from langchain.tools import tool
-from langchain_core.tools import Tool
+from langchain_core.tools import StructuredTool
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
@@ -176,7 +176,7 @@ class ToolLogic:
                     )
                 return "\n\n".join(lines) or "No results found."
 
-            tools.append(Tool(
+            tools.append(StructuredTool.from_function(
                 name="web_search",
                 func=search_with_key,
                 description="Search the web for academic papers, recent findings, and factual data. "

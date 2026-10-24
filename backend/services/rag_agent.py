@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
-from langchain_core.tools import Tool
+from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 from ..provider_factory import ProviderFactory, ProviderConfig
 from ..database import SessionLocal, ChatMessage, MessageRole, get_vector_collection
@@ -53,7 +53,7 @@ class RAGAgent:
 
             return "\n\n".join(formatted_context) if formatted_context else "No relevant information found in the uploaded papers."
 
-        return Tool(
+        return StructuredTool.from_function(
             name="paper_retrieval",
             func=retrieve,
             description="Retrieve specific information from the research papers uploaded to this session."
@@ -64,7 +64,7 @@ class RAGAgent:
         def search_with_key(query: str):
             return web_search.invoke({"query": query, "tavily_api_key": tavily_api_key})
 
-        return Tool(
+        return StructuredTool.from_function(
             name="web_search",
             func=search_with_key,
             description="Search the web for external academic data, recent findings, or verification."

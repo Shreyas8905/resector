@@ -1,7 +1,7 @@
 {
   "name": "resector-desktop",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "scripts": {
     "build:frontend": "node scripts/build-frontend.mjs",
     "build:backend": "python scripts/build_backend.py",
