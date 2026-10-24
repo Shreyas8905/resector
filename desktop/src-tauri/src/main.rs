@@ -89,6 +89,23 @@ fn wait_ready(app: &AppHandle, port: u16) -> Result<(), String> {
     }
 }
 
+/// Appends a line to <data dir>/logs/shell.log (the app has no console, so this is how we see
+/// update problems).
+fn shell_log(app: &AppHandle, msg: &str) {
+    use std::io::Write;
+    if let Ok(dir) = app.path().app_data_dir() {
+        let dir = dir.join("logs");
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("shell.log")) {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let _ = writeln!(f, "[{secs}] {msg}");
+        }
+    }
+}
+
 fn kill_backend(app: &AppHandle) {
     if let Some(mut child) = app.state::<Backend>().0.lock().unwrap().take() {
         let _ = child.kill();
@@ -100,9 +117,12 @@ fn kill_backend(app: &AppHandle) {
 /// If so, asks the user; on "Update now" it downloads, stops the backend (Windows cannot overwrite a
 /// running exe), installs and restarts. Network problems are ignored: the app just keeps working.
 async fn check_for_update(app: AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    shell_log(&app, &format!("update check: running version {}", app.package_info().version));
     let Some(update) = app.updater()?.check().await? else {
+        shell_log(&app, "update check: no newer version");
         return Ok(());
     };
+    shell_log(&app, &format!("update check: found version {}", update.version));
     let notes: String = update.body.clone().unwrap_or_default().chars().take(600).collect();
     let msg = format!(
         "ReSector {} is available (you have {}).\n\n{}\n\nYour data and settings are kept.",
@@ -117,9 +137,12 @@ async fn check_for_update(app: AppHandle) -> Result<(), Box<dyn std::error::Erro
         .buttons(MessageDialogButtons::OkCancelCustom("Update now".into(), "Later".into()))
         .blocking_show();
     if !accepted {
+        shell_log(&app, "update: user chose Later");
         return Ok(());
     }
+    shell_log(&app, "update: downloading");
     let bytes = update.download(|_chunk, _total| {}, || {}).await?;
+    shell_log(&app, "update: installing");
     kill_backend(&app);
     update.install(bytes)?;
     app.restart() // on Windows install() already exited the process and the installer relaunches the app
@@ -154,7 +177,7 @@ fn launch(app: AppHandle) {
             goto(&window, &format!("http://127.0.0.1:{port}/"));
             thread::sleep(Duration::from_secs(4)); // let the UI appear before any prompt
             if let Err(e) = tauri::async_runtime::block_on(check_for_update(app.clone())) {
-                eprintln!("update check skipped: {e}");
+                shell_log(&app, &format!("update check failed: {e}"));
             }
         }
         Err(e) => show_error(&window, &app, &e),
