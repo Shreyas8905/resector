@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
 import DocumentPicker from "./DocumentPicker";
+import ErrorNotice from "./ErrorNotice";
 import { getConfig, processDocument } from "../lib/documentApi";
 
 export default function JargonTool() {
@@ -17,7 +18,7 @@ export default function JargonTool() {
     const config = getConfig();
 
     if (!config.apiKey || !config.apiKey.trim()) {
-      setError("Please configure your API key in Settings");
+      setError("Add your AI key first");
       return;
     }
     if (!file && !input.trim()) {
@@ -63,12 +64,12 @@ export default function JargonTool() {
 
   return (
     <ToolLayout
-      title="Jargon-to-Plain-English Research Log"
-      description="Simplify dense academic text into intuitive analogies."
+      title="Explain in plain language"
+      description="Paste difficult academic text, or upload a PDF, and get it explained in simple words."
       icon={<Lightbulb size={20} />}
     >
       <ToolInput
-        label="Academic Jargon"
+        label="Text to simplify"
         placeholder="Paste complex terminology or a formula explanation..."
         value={input}
         onChange={setInput}
@@ -79,9 +80,7 @@ export default function JargonTool() {
           : "Simplifying..."
         : ""}
       {error && (
-        <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
-          {error}
-        </div>
+        <ErrorNotice error={error} />
       )}
       <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
       <button
@@ -89,7 +88,7 @@ export default function JargonTool() {
         disabled={isLoading || (!input.trim() && !file)}
         className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isLoading ? "Simplifying..." : "Simplify Text"}
+        {isLoading ? "Working…" : "Explain it"}
       </button>
       <ToolOutput content={output} isLoading={isLoading} />
     </ToolLayout>

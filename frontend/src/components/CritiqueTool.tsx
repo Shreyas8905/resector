@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
 import DocumentPicker from "./DocumentPicker";
+import ErrorNotice from "./ErrorNotice";
 import { getConfig, processDocument } from "../lib/documentApi";
 
 const PERSONAS = [
@@ -46,7 +47,7 @@ export default function CritiqueTool() {
     const config = getConfig();
 
     if (!config.apiKey || !config.apiKey.trim()) {
-      setError("Please configure your API key in Settings");
+      setError("Add your AI key first");
       return;
     }
     if (!file && !input.trim()) {
@@ -96,13 +97,13 @@ export default function CritiqueTool() {
 
   return (
     <ToolLayout
-      title="Counter-Argument & Gap Finder"
-      description="Stress-test your hypothesis with a professional peer review."
+      title="Review my writing"
+      description="Get a tough but fair review, like a peer reviewer would give, of your idea or draft."
       icon={<AlertTriangle size={20} />}
     >
       <div className="space-y-6">
         <ToolInput
-          label="Hypothesis or Statement"
+          label="Your idea, claim or draft"
           placeholder="Paste your draft paragraph or research statement..."
           value={input}
           onChange={setInput}
@@ -136,16 +137,14 @@ export default function CritiqueTool() {
             : "Reviewing..."
           : ""}
         {error && (
-          <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
-            {error}
-          </div>
+          <ErrorNotice error={error} />
         )}
         <button
           onClick={handleProcess}
           disabled={isLoading || (!input.trim() && !file)}
           className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isLoading ? "Analyzing..." : "Stress Test"}
+          {isLoading ? "Reviewing…" : "Review"}
         </button>
       </div>
       <ToolOutput content={output} isLoading={isLoading} />

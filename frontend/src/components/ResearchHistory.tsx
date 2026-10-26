@@ -48,8 +48,8 @@ export default function ResearchHistory() {
 
   return (
     <ToolLayout
-      title="Research Archive"
-      description="Semantic search across your past research snippets and AI outputs."
+      title="Past results"
+      description="Search everything you have run before, by meaning rather than exact words."
       icon={<History size={20} />}
     >
       <div className="flex gap-2 mb-8">

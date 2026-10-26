@@ -18,6 +18,7 @@ import ResearchHistory from "@/components/ResearchHistory";
 import PaperChatPage from "@/app/paper-chat/page";
 import PaperGraphView from "@/components/PaperGraphView";
 import ThemeToggle from "@/components/ThemeToggle";
+import SetupBanner from "@/components/SetupBanner";
 import { Network } from "lucide-react";
 import Image from "next/image";
 
@@ -29,13 +30,13 @@ type Tool =
   | "paperchat"
   | "graph";
 
-const tools: { id: Tool; label: string; icon: React.ReactNode }[] = [
-  { id: "paperchat", label: "Paper Chat", icon: <MessageSquare size={17} /> },
-  { id: "graph", label: "Citation Graph", icon: <Network size={17} /> },
-  { id: "sifter", label: "Sift Research", icon: <FileSearch size={17} /> },
-  { id: "critique", label: "Stress Test", icon: <FlaskConical size={17} /> },
-  { id: "jargon", label: "Simplify Text", icon: <Lightbulb size={17} /> },
-  { id: "history", label: "Research Archive", icon: <Archive size={17} /> },
+const tools: { id: Tool; label: string; blurb: string; icon: React.ReactNode }[] = [
+  { id: "paperchat", label: "Chat with your papers", blurb: "Upload PDFs and ask questions. Answers cite the paper and show the relevant figure.", icon: <MessageSquare size={17} /> },
+  { id: "graph", label: "Find related papers", blurb: "Pick a paper and see the papers it cites and the ones that cite it.", icon: <Network size={17} /> },
+  { id: "sifter", label: "Summarize a paper", blurb: "Get the research question, method and weak points from text or a PDF.", icon: <FileSearch size={17} /> },
+  { id: "critique", label: "Review my writing", blurb: "A tough but fair peer-review of your idea or draft.", icon: <FlaskConical size={17} /> },
+  { id: "jargon", label: "Explain in plain language", blurb: "Turn dense academic text into simple words.", icon: <Lightbulb size={17} /> },
+  { id: "history", label: "Past results", blurb: "Search everything you have run before.", icon: <Archive size={17} /> },
 ];
 
 export default function Page() {
@@ -181,19 +182,25 @@ export default function Page() {
                     ReSector
                   </p>
                   <p className="text-2xl font-semibold tracking-tight sm:text-1xl">
-                    Choose a tool to begin.
+                    What would you like to do?
                   </p>
                 </div>
+                <SetupBanner />
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 w-full">
                   {tools.map((tool) => (
                     <button
                       key={tool.id}
                       onClick={() => selectTool(tool.id)}
-                      className="group flex min-h-20 flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition-colors hover:border-[var(--accent)]"
+                      className="group flex min-h-28 flex-col justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow)] transition-colors hover:border-[var(--accent)]"
                     >
                       <span className="text-[var(--accent)]">{tool.icon}</span>
-                      <span className="text-sm font-medium group-hover:text-[var(--accent-strong)]">
-                        {tool.label}
+                      <span>
+                        <span className="block text-sm font-medium group-hover:text-[var(--accent-strong)]">
+                          {tool.label}
+                        </span>
+                        <span className="mt-1 block text-xs font-normal text-[var(--muted)]">
+                          {tool.blurb}
+                        </span>
                       </span>
                     </button>
                   ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { friendlyError } from "../lib/errors";
 
 interface Config {
   provider: string;
@@ -14,179 +15,203 @@ interface SavedConfig extends Config {
   name: string;
 }
 
+const EMPTY_CONFIG: Config = { provider: "groq", apiKey: "", modelName: "", tavilyApiKey: "", s2ApiKey: "" };
+
+const PROVIDERS: Record<string, { label: string; blurb: string; keyUrl: string; placeholder: string }> = {
+  groq: {
+    label: "Groq",
+    blurb: "Fast, and has a free plan, so it's the easiest way to try ReSector. Free plans have low limits for long documents.",
+    keyUrl: "https://console.groq.com/keys",
+    placeholder: "gsk_...",
+  },
+  google: {
+    label: "Google Gemini",
+    blurb: "Has a free plan with generous limits and handles long documents and figures well.",
+    keyUrl: "https://aistudio.google.com/app/apikey",
+    placeholder: "AIza...",
+  },
+  openai: {
+    label: "OpenAI",
+    blurb: "Paid service (ChatGPT's maker). You'll need billing set up on your OpenAI account.",
+    keyUrl: "https://platform.openai.com/api-keys",
+    placeholder: "sk-...",
+  },
+  anthropic: {
+    label: "Anthropic (Claude)",
+    blurb: "Paid service. You'll need billing set up on your Anthropic account.",
+    keyUrl: "https://console.anthropic.com/settings/keys",
+    placeholder: "sk-ant-...",
+  },
+};
+
+function loadConfig(): Config {
+  if (typeof window === "undefined") return EMPTY_CONFIG;
+  try {
+    const saved = localStorage.getItem("resector_config");
+    if (saved) return { ...EMPTY_CONFIG, ...JSON.parse(saved) };
+  } catch {
+    // invalid JSON: fall through to defaults
+  }
+  return EMPTY_CONFIG;
+}
+
+const inputClass =
+  "w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none";
+
 export default function SettingsDrawer() {
   const [isOpen, setIsOpen] = useState(false);
-  const [config, setConfig] = useState<Config>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("resector_config");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // Invalid JSON - return defaults
-          return {
-            provider: "groq",
-            apiKey: "",
-            modelName: "",
-            tavilyApiKey: "",
-            s2ApiKey: "",
-          };
-        }
-      }
-    }
-    return {
-      provider: "groq",
-      apiKey: "",
-      modelName: "",
-      tavilyApiKey: "",
-      s2ApiKey: "",
-    };
-  });
-
+  const [config, setConfig] = useState<Config>(loadConfig);
   const [isValidating, setIsValidating] = useState(false);
-  const [validationMsg, setValidationMsg] = useState("");
+  const [validation, setValidation] = useState<{ ok: boolean; msg: string } | null>(null);
   const [isTavilyValidating, setIsTavilyValidating] = useState(false);
-  const [tavilyValidationMsg, setTavilyValidationMsg] = useState("");
+  const [tavilyValidation, setTavilyValidation] = useState<{ ok: boolean; msg: string } | null>(null);
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("resector_saved_configs");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return [];
-        }
-      }
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem("resector_saved_configs") || "[]");
+    } catch {
+      return [];
     }
-    return [];
   });
   const [configName, setConfigName] = useState("");
+  const [notice, setNotice] = useState("");
 
-  // Close drawer on Escape key
+  const provider = PROVIDERS[config.provider] ?? PROVIDERS.groq;
+
+  // Open on first run (no key yet), and whenever something asks for it ("Open Settings" buttons).
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsOpen(false);
-      }
+    const open = () => {
+      setConfig(loadConfig());
+      setIsOpen(true);
     };
-    if (isOpen) {
-      window.addEventListener("keydown", handleEscape);
+    window.addEventListener("resector:open-settings", open);
+    try {
+      const c = loadConfig();
+      if (!c.apiKey.trim() && !sessionStorage.getItem("resector_setup_dismissed")) setIsOpen(true);
+    } catch {
+      // storage unavailable: just don't auto-open
     }
-    return () => window.removeEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("resector:open-settings", open);
+  }, []);
+
+  const close = () => {
+    try {
+      sessionStorage.setItem("resector_setup_dismissed", "1");
+    } catch {
+      // ignore
+    }
+    setIsOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [isOpen]);
 
-  // Close on backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      setIsOpen(false);
-    }
+    if (e.target === e.currentTarget) close();
   };
 
   const validateKey = async () => {
-    if (!config.apiKey || !config.apiKey.trim()) {
-      setValidationMsg("❌ API key cannot be empty");
+    if (!config.apiKey.trim()) {
+      setValidation({ ok: false, msg: "Paste your key first." });
       return;
     }
     setIsValidating(true);
-    setValidationMsg("");
+    setValidation(null);
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/validate-key`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: config.provider,
-            api_key: config.apiKey.trim(),
-            model_name: config.modelName,
-          }),
-        },
-      );
-
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/validate-key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: config.provider,
+          api_key: config.apiKey.trim(),
+          model_name: config.modelName,
+        }),
+      });
       const data = await response.json();
-      if (response.ok) {
-        setValidationMsg("API key is valid");
-      } else {
-        setValidationMsg(data.detail || "Invalid key");
-      }
+      if (response.ok) setValidation({ ok: true, msg: "Key works." });
+      else setValidation({ ok: false, msg: friendlyError(data.detail || "Invalid key") });
     } catch (err) {
-      setValidationMsg("Connection error");
+      setValidation({ ok: false, msg: friendlyError(err) });
     } finally {
       setIsValidating(false);
     }
   };
 
   const validateTavilyKey = async () => {
-    if (!config.tavilyApiKey || !config.tavilyApiKey.trim()) {
-      setTavilyValidationMsg("Tavily key cannot be empty");
+    if (!config.tavilyApiKey.trim()) {
+      setTavilyValidation({ ok: false, msg: "Paste your key first." });
       return;
     }
     setIsTavilyValidating(true);
-    setTavilyValidationMsg("");
+    setTavilyValidation(null);
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/validate-tavily`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            api_key: config.tavilyApiKey.trim(),
-          }),
-        },
-      );
-
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/validate-tavily`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: config.tavilyApiKey.trim() }),
+      });
       const data = await response.json();
-      if (response.ok) {
-        setTavilyValidationMsg("Tavily key is valid");
-      } else {
-        setTavilyValidationMsg(data.detail || "Invalid key");
-      }
+      if (response.ok) setTavilyValidation({ ok: true, msg: "Key works." });
+      else setTavilyValidation({ ok: false, msg: friendlyError(data.detail || "Invalid key") });
     } catch (err) {
-      setTavilyValidationMsg("Connection error");
+      setTavilyValidation({ ok: false, msg: friendlyError(err) });
     } finally {
       setIsTavilyValidating(false);
     }
   };
 
+  const persist = (c: Config) => {
+    localStorage.setItem("resector_config", JSON.stringify(c));
+    window.dispatchEvent(new Event("resector:config-changed"));
+  };
+
+  const saveActiveConfig = () => {
+    persist({ ...config, apiKey: config.apiKey.trim(), tavilyApiKey: config.tavilyApiKey.trim() });
+    close();
+  };
+
   const saveCurrentConfig = () => {
     if (!configName.trim()) {
-      alert("Please enter a name for this configuration");
+      setNotice("Give the profile a name first.");
       return;
     }
-    const newSaved = [...savedConfigs, { name: configName.trim(), ...config }];
-    setSavedConfigs(newSaved);
-    localStorage.setItem("resector_saved_configs", JSON.stringify(newSaved));
+    const next = [...savedConfigs, { name: configName.trim(), ...config }];
+    setSavedConfigs(next);
+    localStorage.setItem("resector_saved_configs", JSON.stringify(next));
     setConfigName("");
-    alert("Configuration saved!");
+    setNotice("Profile saved.");
   };
 
   const applyConfig = (saved: SavedConfig) => {
-    setConfig({
+    const c: Config = {
       provider: saved.provider,
       apiKey: saved.apiKey,
       modelName: saved.modelName,
       tavilyApiKey: saved.tavilyApiKey || "",
       s2ApiKey: saved.s2ApiKey || "",
-    });
-    localStorage.setItem("resector_config", JSON.stringify(saved));
-    alert(`Applied configuration: ${saved.name}`);
+    };
+    setConfig(c);
+    persist(c);
+    setNotice(`Using profile "${saved.name}".`);
   };
 
   const deleteConfig = (index: number) => {
-    const newSaved = savedConfigs.filter((_, i) => i !== index);
-    setSavedConfigs(newSaved);
-    localStorage.setItem("resector_saved_configs", JSON.stringify(newSaved));
-  };
-
-  const saveActiveConfig = () => {
-    localStorage.setItem("resector_config", JSON.stringify(config));
-    setIsOpen(false);
+    const next = savedConfigs.filter((_, i) => i !== index);
+    setSavedConfigs(next);
+    localStorage.setItem("resector_saved_configs", JSON.stringify(next));
   };
 
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          setConfig(loadConfig());
+          setIsOpen(true);
+        }}
         className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
       >
         Settings
@@ -194,14 +219,18 @@ export default function SettingsDrawer() {
 
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end"
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
           onClick={handleBackdropClick}
         >
-          <div className="h-full w-full max-w-md overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl animate-in slide-in-from-right duration-300 sm:p-8">
-            <div className="flex justify-between items-center mb-8">
+          <div
+            role="dialog"
+            aria-label="Settings"
+            className="h-full w-full max-w-md overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl animate-in slide-in-from-right duration-300 sm:p-8"
+          >
+            <div className="mb-6 flex items-center justify-between">
               <h2 className="text-2xl font-semibold">Settings</h2>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={close}
                 aria-label="Close settings"
                 className="text-2xl text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
               >
@@ -209,204 +238,205 @@ export default function SettingsDrawer() {
               </button>
             </div>
 
-            <div className="space-y-8">
-              <section className="space-y-6">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                  LLM Configuration
-                </h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
-                        AI Provider
-                      </label>
-                      <select
-                        value={config.provider}
-                        onChange={(e) =>
-                          setConfig({ ...config, provider: e.target.value })
-                        }
-                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
-                      >
-                        <option value="groq">Groq</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic</option>
-                        <option value="google">Google Gemini</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
-                        Model Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={config.modelName}
-                        onChange={(e) =>
-                          setConfig({ ...config, modelName: e.target.value })
-                        }
-                        placeholder="e.g. gpt-4o"
-                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
-                      />
-                    </div>
+            <p className="mb-6 text-sm text-[var(--muted)]">
+              ReSector works with an AI service of your choice. Connect one below. Your key is stored only on this
+              computer and sent only to that service.
+            </p>
+
+            <div className="space-y-6">
+              <section className="space-y-2">
+                <h3 className="text-sm font-semibold">1. Choose an AI service</h3>
+                <select
+                  value={config.provider}
+                  onChange={(e) => {
+                    setConfig({ ...config, provider: e.target.value });
+                    setValidation(null);
+                  }}
+                  className={inputClass}
+                >
+                  {Object.entries(PROVIDERS).map(([id, p]) => (
+                    <option key={id} value={id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--muted)]">{provider.blurb}</p>
+              </section>
+
+              <section className="space-y-2">
+                <h3 className="text-sm font-semibold">2. Get a key and paste it here</h3>
+                <p className="text-xs text-[var(--muted)]">
+                  A key is like a password that lets ReSector use your account.{" "}
+                  <a
+                    href={provider.keyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-[var(--accent)] underline"
+                  >
+                    Open the {provider.label} key page
+                  </a>
+                  , create a key, copy it, then paste it below.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={config.apiKey}
+                    onChange={(e) => {
+                      setConfig({ ...config, apiKey: e.target.value });
+                      setValidation(null);
+                    }}
+                    placeholder={provider.placeholder}
+                    aria-label="API key"
+                    className={`flex-1 ${inputClass}`}
+                  />
+                  <button
+                    onClick={validateKey}
+                    disabled={isValidating || !config.apiKey.trim()}
+                    className="rounded-lg bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)] disabled:opacity-50"
+                  >
+                    {isValidating ? "Testing…" : "Test key"}
+                  </button>
+                </div>
+                {validation && (
+                  <p
+                    className={`text-xs font-medium ${validation.ok ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
+                  >
+                    {validation.ok ? "✓ " : ""}
+                    {validation.msg}
+                  </p>
+                )}
+              </section>
+
+              <button
+                onClick={saveActiveConfig}
+                disabled={!config.apiKey.trim()}
+                className="w-full rounded-lg bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
+              >
+                Save and start
+              </button>
+
+              <details className="rounded-lg border border-[var(--border)] p-3">
+                <summary className="cursor-pointer text-sm font-semibold">Advanced options</summary>
+                <div className="mt-4 space-y-5">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                      AI model (leave empty for the default)
+                    </label>
+                    <input
+                      type="text"
+                      value={config.modelName}
+                      onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+                      placeholder="e.g. gpt-4o"
+                      className={inputClass}
+                    />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
-                      LLM API Key
+                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                      Web search key (optional)
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={config.apiKey}
-                        onChange={(e) =>
-                          setConfig({ ...config, apiKey: e.target.value })
-                        }
-                        placeholder="sk-..."
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
-                      />
-                      <button
-                        onClick={validateKey}
-                        disabled={isValidating || !config.apiKey}
-                        className="rounded-lg bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)] disabled:opacity-50"
+                    <p className="mb-2 text-xs text-[var(--subtle)]">
+                      Lets the AI look things up online and cite web sources. Free keys at{" "}
+                      <a
+                        href="https://app.tavily.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
                       >
-                        {isValidating ? "..." : "Test"}
-                      </button>
-                    </div>
-                    {validationMsg && (
-                      <p
-                        className={`mt-1 text-[10px] font-medium ${
-                          validationMsg.includes("is valid")
-                            ? "text-[var(--success)]"
-                            : "text-[var(--danger)]"
-                        }`}
-                      >
-                        {validationMsg}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="border-t border-[var(--border)] pt-4">
-                    <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
-                      Tavily API Key (For Web Search)
-                    </label>
+                        app.tavily.com
+                      </a>
+                      .
+                    </p>
                     <div className="flex gap-2">
                       <input
                         type="password"
                         value={config.tavilyApiKey}
-                        onChange={(e) =>
-                          setConfig({ ...config, tavilyApiKey: e.target.value })
-                        }
+                        onChange={(e) => setConfig({ ...config, tavilyApiKey: e.target.value })}
                         placeholder="tvly-..."
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                        className={`flex-1 ${inputClass}`}
                       />
                       <button
                         onClick={validateTavilyKey}
-                        disabled={isTavilyValidating || !config.tavilyApiKey}
+                        disabled={isTavilyValidating || !config.tavilyApiKey.trim()}
                         className="rounded-lg bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)] disabled:opacity-50"
                       >
-                        {isTavilyValidating ? "..." : "Test"}
+                        {isTavilyValidating ? "Testing…" : "Test"}
                       </button>
                     </div>
-                    {tavilyValidationMsg && (
+                    {tavilyValidation && (
                       <p
-                        className={`mt-1 text-[10px] font-medium ${
-                          tavilyValidationMsg.includes("is valid")
-                            ? "text-[var(--success)]"
-                            : "text-[var(--danger)]"
-                        }`}
+                        className={`mt-1 text-xs font-medium ${tavilyValidation.ok ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
                       >
-                        {tavilyValidationMsg}
+                        {tavilyValidation.ok ? "✓ " : ""}
+                        {tavilyValidation.msg}
                       </p>
                     )}
                   </div>
 
-                  <div className="border-t border-[var(--border)] pt-4">
-                    <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
-                      Semantic Scholar API Key (Optional)
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                      Semantic Scholar key (optional)
                     </label>
                     <input
                       type="password"
                       value={config.s2ApiKey || ""}
-                      onChange={(e) =>
-                        setConfig({ ...config, s2ApiKey: e.target.value })
-                      }
-                      placeholder="Optional S2 API key for higher rate limits"
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                      onChange={(e) => setConfig({ ...config, s2ApiKey: e.target.value })}
+                      placeholder="Only needed if the citation graph is rate-limited"
+                      className={inputClass}
                     />
-                    <p className="mt-1 text-[10px] text-[var(--subtle)]">
-                      Leave empty for default unauthenticated public access.
-                    </p>
                   </div>
 
-                  <button
-                    onClick={saveActiveConfig}
-                    className="mt-4 w-full rounded-lg bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)]"
-                  >
-                    Apply Configuration
-                  </button>
-
-                </div>
-              </section>
-
-              <section className="space-y-6 border-t border-[var(--border)] pt-8">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                  Saved Profiles
-                </h3>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    value={configName}
-                    onChange={(e) => setConfigName(e.target.value)}
-                    placeholder="Profile name (e.g. 'Research Mode')"
-                    className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-sm text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
-                  />
-                  <button
-                    onClick={saveCurrentConfig}
-                    className="rounded-lg bg-[var(--surface-strong)] px-4 py-2 text-xs font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)]"
-                  >
-                    Save
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {savedConfigs.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-[var(--subtle)]">
-                      No saved profiles yet.
-                    </p>
-                  ) : (
-                    savedConfigs.map((saved: SavedConfig) => (
-                      <div
-                        key={saved.name}
-                        className="group flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3 transition-all hover:border-[var(--border-strong)]"
+                  <div className="space-y-3 border-t border-[var(--border)] pt-4">
+                    <h4 className="text-sm font-semibold">Saved profiles</h4>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={configName}
+                        onChange={(e) => setConfigName(e.target.value)}
+                        placeholder="Profile name"
+                        className={`flex-1 text-sm ${inputClass}`}
+                      />
+                      <button
+                        onClick={saveCurrentConfig}
+                        className="rounded-lg bg-[var(--surface-strong)] px-4 py-2 text-xs font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)]"
                       >
-                        <div>
-                          <p className="text-sm font-medium text-[var(--foreground)]">
-                            {saved.name}
-                          </p>
-                          <p className="text-[10px] uppercase text-[var(--muted)]">
-                            {saved.provider}
-                          </p>
+                        Save
+                      </button>
+                    </div>
+                    {notice && <p className="text-xs text-[var(--muted)]">{notice}</p>}
+                    {savedConfigs.length === 0 ? (
+                      <p className="text-xs text-[var(--subtle)]">No saved profiles yet.</p>
+                    ) : (
+                      savedConfigs.map((saved, i) => (
+                        <div
+                          key={saved.name + i}
+                          className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{saved.name}</p>
+                            <p className="text-[10px] uppercase text-[var(--muted)]">{saved.provider}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => applyConfig(saved)}
+                              className="p-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                            >
+                              Use
+                            </button>
+                            <button
+                              onClick={() => deleteConfig(i)}
+                              aria-label={`Delete profile ${saved.name}`}
+                              className="p-2 text-[var(--subtle)] hover:text-[var(--danger)]"
+                            >
+                              &times;
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => applyConfig(saved)}
-                            className="p-2 text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-                            title="Apply Profile"
-                          >
-                            Apply
-                          </button>
-                          <button
-                            onClick={() => deleteConfig(savedConfigs.indexOf(saved))}
-                            className="p-2 text-[var(--subtle)] transition-colors hover:text-[var(--danger)]"
-                            title="Delete Profile"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </section>
+              </details>
             </div>
           </div>
         </div>

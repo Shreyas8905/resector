@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { FileSearch } from "lucide-react";
 import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
 import DocumentPicker from "./DocumentPicker";
+import ErrorNotice from "./ErrorNotice";
 import { getConfig, processDocument } from "../lib/documentApi";
 
 export default function SifterTool() {
@@ -17,7 +18,7 @@ export default function SifterTool() {
     const config = getConfig();
 
     if (!config.apiKey || !config.apiKey.trim()) {
-      setError("Please configure your API key in Settings");
+      setError("Add your AI key first");
       return;
     }
     if (!file && !input.trim()) {
@@ -65,25 +66,23 @@ export default function SifterTool() {
 
   return (
     <ToolLayout
-      title="PDF Abstract & Methodology Sifter"
-      description="Extract core research questions, methodology, and fatal flaws."
+      title="Summarize a paper"
+      description="Paste text or upload a PDF to pull out the research question, the method used, and the weak points."
       icon={<FileSearch size={20} />}
     >
       <ToolInput
-        label="Academic Text"
+        label="Paste text from a paper"
         placeholder="Paste an abstract or methodology snippet here..."
         value={input}
         onChange={setInput}
       />
       {isLoading
         ? file
-          ? "Reading document, this can take a few minutes..."
-          : "Sifting..."
+          ? "Reading your document. This can take a few minutes…"
+          : "Working…"
         : ""}
       {error && (
-        <div className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
-          {error}
-        </div>
+        <ErrorNotice error={error} />
       )}
       <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
 
@@ -92,7 +91,7 @@ export default function SifterTool() {
         disabled={isLoading || (!input.trim() && !file)}
         className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isLoading ? "Sifting..." : "Sift Research"}
+        {isLoading ? "Working…" : "Summarize"}
       </button>
       <ToolOutput content={output} isLoading={isLoading} />
     </ToolLayout>

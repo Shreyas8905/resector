@@ -30,6 +30,7 @@ import remarkGfm from "remark-gfm";
 import PaperGraphView from "@/components/PaperGraphView";
 import { FigureCards, FigureInfo } from "@/components/FigureCards";
 import { getAnalyzeFigures, setAnalyzeFigures } from "@/lib/figureSettings";
+import { friendlyError, errorText, openSettings } from "@/lib/errors";
 
 interface Session {
   id: string;
@@ -355,7 +356,7 @@ export default function PaperChatPage() {
     const config = JSON.parse(localStorage.getItem("resector_config") || "{}");
 
     if (!config.apiKey) {
-      alert("Please configure your LLM API key in the Settings Drawer (gear icon).");
+      openSettings();
       return;
     }
 
@@ -401,7 +402,7 @@ export default function PaperChatPage() {
         ...prev,
         {
           role: "assistant",
-          content: `⚠️ **Error encountered**: ${e instanceof Error ? e.message : "Could not connect to the research agent."}`,
+          content: `⚠️ ${friendlyError(e)}\n\n> Technical details: ${errorText(e).replace(/\s+/g, " ").slice(0, 240)}`,
         },
       ]);
     } finally {
