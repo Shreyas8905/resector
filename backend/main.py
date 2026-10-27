@@ -332,7 +332,7 @@ async def create_session(req: CreateSessionRequest, db=Depends(get_db)):
 
 @app.get("/chat/sessions")
 async def list_sessions(db=Depends(get_db)):
-    sessions = db.query(UserSession).all()
+    sessions = db.query(UserSession).filter(~UserSession.session_id.like("dash\\_%", escape="\\")).all()
     return [{"id": s.session_id, "title": s.title, "updated_at": s.updated_at} for s in sessions]
 
 @app.post("/chat/upload")
@@ -629,6 +629,10 @@ async def get_graph_session(session_id: str, db=Depends(get_db)):
         "metadata": json.loads(snapshot.metadata_json or "{}"),
         "created_at": snapshot.created_at
     }
+
+
+from .dashboards import router as dashboards_router
+app.include_router(dashboards_router)
 
 
 # Desktop app: the backend also serves the exported frontend (same origin, no CORS, no fixed API URL).

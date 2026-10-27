@@ -5,6 +5,7 @@ import {
   Archive,
   FileSearch,
   FlaskConical,
+  LayoutDashboard,
   Lightbulb,
   MessageSquare,
   PanelLeftClose,
@@ -16,6 +17,7 @@ import CritiqueTool from "@/components/CritiqueTool";
 import JargonTool from "@/components/JargonTool";
 import ResearchHistory from "@/components/ResearchHistory";
 import PaperChatPage from "@/app/paper-chat/page";
+import DashboardsTool from "@/components/dashboard/DashboardsTool";
 import PaperGraphView from "@/components/PaperGraphView";
 import ThemeToggle from "@/components/ThemeToggle";
 import SetupBanner from "@/components/SetupBanner";
@@ -28,10 +30,12 @@ type Tool =
   | "jargon"
   | "history"
   | "paperchat"
-  | "graph";
+  | "graph"
+  | "dashboards";
 
 const tools: { id: Tool; label: string; blurb: string; icon: React.ReactNode }[] = [
   { id: "paperchat", label: "Chat with your papers", blurb: "Upload PDFs and ask questions. Answers cite the paper and show the relevant figure.", icon: <MessageSquare size={17} /> },
+  { id: "dashboards", label: "Research dashboards", blurb: "A canvas per project: lay out papers, save passages and link the ideas that connect.", icon: <LayoutDashboard size={17} /> },
   { id: "graph", label: "Find related papers", blurb: "Pick a paper and see the papers it cites and the ones that cite it.", icon: <Network size={17} /> },
   { id: "sifter", label: "Summarize a paper", blurb: "Get the research question, method and weak points from text or a PDF.", icon: <FileSearch size={17} /> },
   { id: "critique", label: "Review my writing", blurb: "A tough but fair peer-review of your idea or draft.", icon: <FlaskConical size={17} /> },
@@ -153,7 +157,7 @@ export default function Page() {
         </header>
 
         <main
-          className={`min-h-0 flex-1 ${activeTool === "paperchat" || activeTool === "graph" ? "overflow-hidden" : "overflow-y-auto"}`}
+          className={`min-h-0 flex-1 ${activeTool === "paperchat" || activeTool === "graph" || activeTool === "dashboards" ? "overflow-hidden" : "overflow-y-auto"}`}
         >
           {!activeTool ? (
             <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-between px-0.5 py-0.1 sm:px-10">
@@ -225,9 +229,10 @@ export default function Page() {
             </div>
           ) : (
             <div
-              className={`mx-auto w-full ${activeTool === "paperchat" || activeTool === "graph" ? "h-full max-w-none px-0 py-0" : "max-w-5xl px-6 py-8 sm:px-10"}`}
+              className={`mx-auto w-full ${activeTool === "paperchat" || activeTool === "graph" || activeTool === "dashboards" ? "h-full max-w-none px-0 py-0" : "max-w-5xl px-6 py-8 sm:px-10"}`}
             >
               {activeTool === "graph" && <PaperGraphView />}
+              {activeTool === "dashboards" && <DashboardsTool />}
               {activeTool === "sifter" && <SifterTool />}
               {activeTool === "critique" && <CritiqueTool />}
               {activeTool === "jargon" && <JargonTool />}

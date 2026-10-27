@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event, Column, Integer, String, Text, DateTime, ForeignKey, Enum as SqlEnum
+from sqlalchemy import create_engine, event, Column, Integer, Float, String, Text, DateTime, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 from datetime import datetime, timezone
 import enum
@@ -114,6 +114,77 @@ class Figure(Base):
     facts = Column(Text, nullable=True)             # newline-separated key facts
     image_path = Column(String)                     # relative to DATA_DIR
     fallback = Column(Integer, default=0)           # 1 = whole-page render (crop not found)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ---- Research Dashboard (canvas) -------------------------------------------------------
+# Additive tables only. A dashboard owns a hidden UserSession so uploads, Chroma indexing and
+# figure extraction reuse the existing pipeline unchanged.
+class Dashboard(Base):
+    __tablename__ = "dashboards"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True, index=True)
+    dash_id = Column(String, unique=True, index=True)
+    session_id = Column(String, index=True)          # backing UserSession.session_id
+    project = Column(String, default="")             # free-text project / paper this belongs to
+    title = Column(String, default="Untitled dashboard")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CanvasNode(Base):
+    __tablename__ = "canvas_nodes"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    node_id = Column(String, index=True)             # client-generated id
+    type = Column(String)                            # paper|excerpt|note|claim|frame
+    x = Column(Float, default=0)
+    y = Column(Float, default=0)
+    width = Column(Float, nullable=True)
+    height = Column(Float, nullable=True)
+    data = Column(Text, default="{}")                # JSON
+
+
+class CanvasEdge(Base):
+    __tablename__ = "canvas_edges"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    edge_id = Column(String, index=True)
+    source = Column(String)
+    target = Column(String)
+    source_handle = Column(String, nullable=True)
+    target_handle = Column(String, nullable=True)
+    kind = Column(String, default="related")
+    label = Column(String, default="")
+
+
+class Excerpt(Base):
+    __tablename__ = "excerpts"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    document_id = Column(Integer, index=True)
+    page = Column(Integer)                           # 1-based
+    kind = Column(String, default="text")            # text | area
+    rects = Column(Text, default="[]")               # JSON, fractions of the page
+    quote = Column(Text, default="")
+    prefix = Column(Text, default="")
+    suffix = Column(Text, default="")
+    image_path = Column(String, nullable=True)       # area excerpts: cropped PNG, relative to DATA_DIR
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class CanvasComment(Base):
+    __tablename__ = "canvas_comments"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    node_id = Column(String, nullable=True, index=True)   # null = dashboard-level
+    author = Column(String, default="You")
+    text = Column(Text, default="")
+    resolved = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
