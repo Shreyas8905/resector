@@ -64,7 +64,7 @@ class GroqProvider(LLMProvider):
     def get_model(self, config: ProviderConfig):
         return ChatGroq(
             groq_api_key=config.api_key,
-            model=config.model_name or "llama-3.3-70b-versatile"
+            model=config.model_name or "openai/gpt-oss-120b"
         )
 
 
