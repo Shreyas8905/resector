@@ -11,6 +11,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from .config import settings, RateLimitError
 
 from .provider_factory import ProviderFactory, ProviderConfig
+from .services.token_budget import (
+    input_budget, make_prompt_hook, request_limit, default_limit, is_too_large_error, learn_from_error,
+)
 from .database import SessionLocal, ResearchLog, get_vector_collection
 
 logger = logging.getLogger(__name__)
@@ -124,8 +127,13 @@ class ToolLogic:
         )
 
     @staticmethod
-    async def _invoke(llm, tools, system_prompt: str, user_input: str, max_searches: int = 0) -> str:
-        agent = create_react_agent(llm, tools)
+    async def _invoke(llm, tools, system_prompt: str, user_input: str, max_searches: int = 0,
+                      config: Optional[ProviderConfig] = None) -> str:
+        if config is not None:
+            hook = make_prompt_hook(lambda: input_budget(config.provider, config.model_name), overhead=350 * len(tools))
+            agent = create_react_agent(llm, tools, prompt=hook)   # trims web results / long input per model call
+        else:
+            agent = create_react_agent(llm, tools)
         system_message = f"{system_prompt}\n\n{ToolLogic._guidelines(max_searches)}"
         inputs = {"messages": [SystemMessage(content=system_message), HumanMessage(content=user_input)]}
         result = await agent.ainvoke(inputs, config={"recursion_limit": 14})
@@ -184,12 +192,12 @@ class ToolLogic:
             ))
 
         try:
-            text = await ToolLogic._invoke(llm, tools, system_prompt, user_input, max_searches)
+            text = await ToolLogic._invoke(llm, tools, system_prompt, user_input, max_searches, config)
             return ToolLogic._append_sources(text, sources)
         except Exception as e:
             if tools and ToolLogic._is_too_large(e):
                 logger.warning("Request too large with web search; retrying without search")
-                text = await ToolLogic._invoke(llm, [], system_prompt, user_input, 0)
+                text = await ToolLogic._invoke(llm, [], system_prompt, user_input, 0, config)
                 return text + "\n\n*Note: web search was skipped because the request exceeded your provider's token limit.*"
             raise
 
@@ -242,7 +250,7 @@ class ToolLogic:
         return text
 
     @staticmethod
-    async def _retry(fn):
+    async def _retry(fn, config: Optional[ProviderConfig] = None):
         """Retries on provider rate limits, waiting as long as the provider asks. Oversized requests are not retried."""
         last_err = None
         for _ in range(6):
@@ -250,7 +258,9 @@ class ToolLogic:
                 return await fn()
             except Exception as e:
                 msg = str(e).lower()
-                if "request too large" in msg or "error code: 413" in msg:
+                if is_too_large_error(e):
+                    if config is not None:     # remember the real limit so the next request is sized correctly
+                        learn_from_error(config.provider, config.model_name, str(e))
                     raise
                 if not ("rate limit" in msg or "429" in msg or "tokens per minute" in msg or "too many requests" in msg):
                     raise
@@ -272,6 +282,10 @@ class ToolLogic:
     async def run_document(tool: str, config: ProviderConfig, text: str, filename: str,
                            severity: str = "constructive_colleague", tavily_api_key: Optional[str] = None):
         budget = settings.TOOL_CHAR_BUDGET or (14000 if config.provider == "groq" else 60000)
+        # If the provider has told us its real limit is lower than we assumed, make the parts smaller too.
+        learned, assumed = request_limit(config.provider, config.model_name), default_limit(config.provider, config.model_name)
+        if learned < assumed:
+            budget = max(3000, int(budget * learned / assumed))
         text = ToolLogic._strip_references(text).strip()
         if not text:
             raise ValueError("The document contains no readable text")
@@ -285,7 +299,7 @@ class ToolLogic:
 
         # Short enough: run the tool directly
         if len(text) <= budget:
-            return await ToolLogic._retry(lambda: run_tool(text, tavily_api_key))
+            return await ToolLogic._retry(lambda: run_tool(text, tavily_api_key), config)
 
         chunks = RecursiveCharacterTextSplitter(chunk_size=budget, chunk_overlap=300).split_text(text)
         if len(chunks) > settings.TOOL_MAX_PARTS:
@@ -299,7 +313,7 @@ class ToolLogic:
             parts = []
             for i, chunk in enumerate(chunks, 1):
                 logger.info(f"jargon: part {i}/{len(chunks)} of {filename}")
-                out = await ToolLogic._retry(lambda c=chunk: run_tool(c, None))
+                out = await ToolLogic._retry(lambda c=chunk: run_tool(c, None), config)
                 parts.append(f"### Part {i} of {len(chunks)}\n\n{out}")
             return "\n\n".join(parts)
 
@@ -325,7 +339,7 @@ class ToolLogic:
             "followed by condensed notes from every part of the paper. Analyze the whole paper from these.\n\n"
             f"--- OPENING TEXT ---\n{text[:HEAD_CHARS]}\n\n--- CONDENSED NOTES ---\n{combined}"
         )
-        return await ToolLogic._retry(lambda: run_tool(user_input, tavily_api_key))
+        return await ToolLogic._retry(lambda: run_tool(user_input, tavily_api_key), config)
 
     @staticmethod
     def _tavily_search(query: str, api_key: str, max_results: int):
