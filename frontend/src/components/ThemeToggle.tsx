@@ -31,9 +31,7 @@ export default function ThemeToggle() {
 
   // Prevent hydration mismatch - render placeholder until mounted
   if (!mounted) {
-    return (
-      <div className="h-9 w-9 rounded-lg border border-[var(--border)] bg-[var(--surface)]" />
-    );
+    return <div className="icon-btn" aria-hidden />;
   }
 
   const isDark = theme === "dark";
@@ -44,9 +42,9 @@ export default function ThemeToggle() {
       onClick={toggleTheme}
       aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
       title={`Switch to ${isDark ? "light" : "dark"} theme`}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+      className="icon-btn"
     >
-      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+      {isDark ? <Sun size={17} /> : <Moon size={17} />}
     </button>
   );
 }

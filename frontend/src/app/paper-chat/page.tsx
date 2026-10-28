@@ -10,27 +10,24 @@ import {
   X,
   Trash2,
   File,
-  Bot,
-  User,
   Paperclip,
   Network,
   Sparkles,
   Copy,
   Check,
-  MoreVertical,
-  RotateCcw,
   BookOpen,
   FileText,
   HelpCircle,
   Search,
-  ExternalLink,
 } from "lucide-react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PaperGraphView from "@/components/PaperGraphView";
 import { FigureCards, FigureInfo } from "@/components/FigureCards";
 import { getAnalyzeFigures, setAnalyzeFigures } from "@/lib/figureSettings";
 import { friendlyError, errorText, openSettings } from "@/lib/errors";
+import { useDialogs } from "@/components/ui/Dialogs";
 
 interface Session {
   id: string;
@@ -61,28 +58,29 @@ interface UploadItem {
 
 const STARTER_PROMPTS = [
   {
-    title: "Synthesize Core Findings",
+    title: "Summarize the key findings",
     prompt: "Provide a comprehensive summary of the key findings, methodology, and empirical results in these papers.",
     icon: Sparkles,
   },
   {
-    title: "Methodological Critique",
+    title: "Critique the methods",
     prompt: "Critique the experimental design and theoretical assumptions made by the authors. What are the major limitations?",
     icon: HelpCircle,
   },
   {
-    title: "Extract Comparative Metrics",
+    title: "Compare results in a table",
     prompt: "Compare performance benchmarks, dataset statistics, and baseline comparisons reported across the uploaded papers in a table format.",
     icon: BookOpen,
   },
   {
-    title: "Future Research Directions",
+    title: "Find open questions",
     prompt: "What open problems and unanswered questions do the authors propose for future work?",
     icon: FileText,
   },
 ];
 
 export default function PaperChatPage() {
+  const { confirm, ask, notify, dialogs } = useDialogs();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -101,7 +99,6 @@ export default function PaperChatPage() {
   const [selectedPaperForGraph, setSelectedPaperForGraph] = useState<string>("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [sessionSearchQuery, setSessionSearchQuery] = useState("");
-  const [hoveredMessageIndex, setHoveredMessageIndex] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -121,7 +118,7 @@ export default function PaperChatPage() {
   }, [activeSessionId]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isLoading]);
 
   const fetchSessions = async () => {
@@ -167,7 +164,13 @@ export default function PaperChatPage() {
   };
 
   const createNewSession = async () => {
-    const title = prompt("Enter a title for this research session:", "New Research Session");
+    const title = await ask({
+      title: "New research session",
+      message: "A session keeps one set of papers and the conversation about them together.",
+      label: "Session name",
+      initial: "New Research Session",
+      confirmLabel: "Create session",
+    });
     if (!title || !title.trim()) return;
 
     try {
@@ -189,15 +192,13 @@ export default function PaperChatPage() {
       await fetchSessions();
       setActiveSessionId(data.session_id);
     } catch (e) {
-      alert(
-        `Error: ${e instanceof Error ? e.message : "Unknown error occurred"}`,
-      );
+      notify(e instanceof Error ? e.message : "Could not create the session.", "error");
     }
   };
 
   const deleteSession = async (sessionId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this session and all its messages and papers?")) return;
+    if (!(await confirm({ title: "Delete this session?", message: "Its messages and uploaded papers will be removed. This can’t be undone.", danger: true }))) return;
 
     try {
       const response = await fetch(
@@ -212,13 +213,13 @@ export default function PaperChatPage() {
         setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : "Could not delete session"}`);
+      notify(err instanceof Error ? err.message : "Could not delete the session.", "error");
     }
   };
 
   const clearChatHistory = async () => {
     if (!activeSessionId) return;
-    if (!confirm("Are you sure you want to clear all chat messages in this conversation?")) return;
+    if (!(await confirm({ title: "Clear this conversation?", message: "All messages in this session will be removed. Your papers stay.", confirmLabel: "Clear chat", danger: true }))) return;
 
     try {
       const response = await fetch(
@@ -228,12 +229,12 @@ export default function PaperChatPage() {
       if (!response.ok) throw new Error("Failed to clear messages");
       setMessages([]);
     } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : "Could not clear messages"}`);
+      notify(err instanceof Error ? err.message : "Could not clear the messages.", "error");
     }
   };
 
   const deleteSingleMessage = async (index: number, msgId?: number) => {
-    if (!confirm("Delete this message?")) return;
+    if (!(await confirm({ title: "Delete this message?", danger: true }))) return;
 
     if (msgId) {
       try {
@@ -255,7 +256,7 @@ export default function PaperChatPage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!activeSessionId) {
-      alert("Please create or select a session first");
+      notify("Create or select a session first.", "error");
       return;
     }
     const sessionId = activeSessionId;
@@ -331,7 +332,7 @@ export default function PaperChatPage() {
 
   const deleteDocument = async (docId: number) => {
     if (!activeSessionId) return;
-    if (!confirm("Are you sure you want to delete this paper?")) return;
+    if (!(await confirm({ title: "Remove this paper?", message: "It will no longer be used to answer questions in this session.", confirmLabel: "Remove", danger: true }))) return;
 
     try {
       const response = await fetch(
@@ -343,9 +344,7 @@ export default function PaperChatPage() {
       if (!response.ok) throw new Error("Failed to delete document");
       fetchDocuments(activeSessionId);
     } catch (e) {
-      alert(
-        `Error: ${e instanceof Error ? e.message : "Unknown error occurred"}`,
-      );
+      notify(e instanceof Error ? e.message : "Could not remove the paper.", "error");
     }
   };
 
@@ -412,157 +411,154 @@ export default function PaperChatPage() {
     }
   };
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
+
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(sessionSearchQuery.toLowerCase())
   );
 
+  const activeTitle = sessions.find((s) => s.id === activeSessionId)?.title;
+
   return (
-    <div className="flex h-full min-h-0 bg-[var(--background)] text-[var(--foreground)] font-sans">
-      {/* Left Sidebar: Session History */}
-      <div
-        className={`${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-72 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] max-lg:w-60 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 shadow-lg md:shadow-none transition-all`}
+    <div className="relative flex h-full min-h-0 bg-[var(--background)] text-[var(--foreground)]">
+      {dialogs}
+      {(isSessionPaneOpen || isDocumentPaneOpen) && (
+        <button
+          aria-label="Close panel"
+          className="anim-fade absolute inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => {
+            setIsSessionPaneOpen(false);
+            setIsDocumentPaneOpen(false);
+          }}
+        />
+      )}
+
+      {/* Sessions */}
+      <aside
+        aria-label="Sessions"
+        className={`${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] max-lg:w-56 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
       >
-        {/* Sidebar Header & New Session */}
-        <div className="p-3 border-b border-[var(--border)] space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-              Sessions ({sessions.length})
-            </span>
-            <button
-              onClick={() => setIsSessionPaneOpen(false)}
-              className="md:hidden p-1 text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
+        <div className="space-y-3 p-3">
+          <div className="flex items-center justify-between md:hidden">
+            <span className="text-sm font-semibold">Sessions</span>
+            <button onClick={() => setIsSessionPaneOpen(false)} className="icon-btn !h-8 !w-8" aria-label="Close sessions">
               <X size={16} />
             </button>
           </div>
-          <button
-            onClick={createNewSession}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[var(--accent-contrast)] shadow-sm transition-all hover:bg-[var(--accent-strong)] hover:shadow active:scale-[0.98]"
-          >
-            <Plus size={15} /> New Research Session
+          <button onClick={createNewSession} className="btn btn-primary w-full">
+            <Plus size={15} /> New session
           </button>
-        </div>
-
-        {/* Session Filter */}
-        {sessions.length > 5 && (
-          <div className="px-3 pt-2">
+          {sessions.length > 5 && (
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-2.5 text-[var(--muted)]" />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
               <input
                 type="text"
                 value={sessionSearchQuery}
                 onChange={(e) => setSessionSearchQuery(e.target.value)}
-                placeholder="Search sessions..."
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] py-1.5 pl-8 pr-2 text-xs text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
+                placeholder="Search sessions"
+                aria-label="Search sessions"
+                className="field !py-1.5 !pl-8 !text-xs"
               />
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Sessions List */}
-        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+        <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           {filteredSessions.length === 0 ? (
-            <div className="p-4 text-center text-xs text-[var(--subtle)]">
-              {sessionSearchQuery ? "No matching sessions" : "No sessions yet. Start one!"}
-            </div>
+            <li className="px-3 py-6 text-center text-xs text-[var(--subtle)]">
+              {sessionSearchQuery ? "No sessions match that search." : "No sessions yet. Create one to start."}
+            </li>
           ) : (
             filteredSessions.map((s) => {
               const isActive = activeSessionId === s.id;
               return (
-                <div
-                  key={s.id}
-                  onClick={() => {
-                    setActiveSessionId(s.id);
-                    setIsSessionPaneOpen(false);
-                  }}
-                  className={`group relative flex items-center justify-between rounded-xl p-2.5 cursor-pointer transition-all ${
-                    isActive
-                      ? "bg-[var(--surface-strong)] text-[var(--foreground)] font-semibold shadow-sm border border-[var(--border-strong)]"
-                      : "text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                    <MessageSquare size={15} className={`shrink-0 ${isActive ? "text-[var(--accent)]" : "text-[var(--subtle)]"}`} />
-                    <span className="text-xs truncate">{s.title}</span>
-                  </div>
+                <li key={s.id} className="group relative">
+                  <button
+                    onClick={() => {
+                      setActiveSessionId(s.id);
+                      setIsSessionPaneOpen(false);
+                    }}
+                    aria-current={isActive ? "true" : undefined}
+                    className={`flex w-full items-center gap-2.5 rounded-[var(--radius-control)] py-2 pl-3 pr-9 text-left text-[13px] transition-colors ${
+                      isActive
+                        ? "bg-[var(--accent-soft)] font-medium text-[var(--accent-strong)]"
+                        : "text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    <span className="truncate">{s.title}</span>
+                  </button>
                   <button
                     onClick={(e) => deleteSession(s.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-[var(--subtle)] hover:text-[var(--danger)] hover:bg-[var(--surface-strong)] rounded-md transition-all shrink-0"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--subtle)] opacity-0 transition-opacity hover:bg-[var(--surface-strong)] hover:text-[var(--danger)] focus-visible:opacity-100 group-hover:opacity-100"
                     title="Delete session"
+                    aria-label={`Delete session ${s.title}`}
                   >
                     <Trash2 size={13} />
                   </button>
-                </div>
+                </li>
               );
             })
           )}
-        </div>
-      </div>
+        </ul>
+      </aside>
 
-      {/* Main Area */}
-      <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+      {/* Main area */}
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {!activeSessionId ? (
-          <div className="flex flex-1 flex-col items-center justify-center space-y-5 p-8 text-center bg-[var(--background)]">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 shadow-lg">
-              <Bot size={32} />
-            </div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
             <div className="max-w-md space-y-2">
-              <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-                Resector Paper Chat
-              </h2>
-              <p className="text-sm text-[var(--muted)] leading-relaxed">
-                Start a research session, upload PDF scientific papers, and interact with an AI research agent grounded in your paper collection.
+              <h2 className="font-serif text-2xl font-semibold tracking-tight">Start with a session</h2>
+              <p className="text-sm leading-relaxed text-[var(--muted)]">
+                A session holds the papers you upload and the conversation about them. Ask questions, and answers cite the paper they came from.
               </p>
             </div>
-            <button
-              onClick={createNewSession}
-              className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--accent-contrast)] shadow-md hover:bg-[var(--accent-strong)] transition-all active:scale-95"
-            >
-              <Plus size={16} /> Create Research Session
+            <button onClick={createNewSession} className="btn btn-primary btn-lg">
+              <Plus size={16} /> New session
             </button>
           </div>
         ) : (
           <>
-            <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--background)]">
-              {/* Header Bar */}
-              <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 shrink-0 z-10 shadow-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex gap-1 md:hidden">
-                    <button
-                      onClick={() => setIsSessionPaneOpen((isOpen) => !isOpen)}
-                      className="rounded-lg bg-[var(--surface-strong)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)]"
-                    >
-                      Sessions
-                    </button>
-                  </div>
+            <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <button
+                    onClick={() => setIsSessionPaneOpen((o) => !o)}
+                    className="btn btn-secondary !px-2.5 !py-1.5 md:hidden"
+                    aria-label="Show sessions"
+                  >
+                    <MessageSquare size={14} />
+                  </button>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)] animate-pulse" />
-                      <h2 className="text-sm font-bold truncate text-[var(--foreground)] max-w-xs md:max-w-md">
-                        {sessions.find((s) => s.id === activeSessionId)?.title}
-                      </h2>
-                    </div>
-                    <p className="text-[10px] text-[var(--muted)] truncate">
-                      {documents.length} paper{documents.length === 1 ? "" : "s"} loaded • {messages.length} messages
+                    <h2 className="truncate text-sm font-semibold">{activeTitle}</h2>
+                    <p className="truncate text-xs text-[var(--muted)]">
+                      {documents.length} paper{documents.length === 1 ? "" : "s"} · {messages.length} message{messages.length === 1 ? "" : "s"}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* View Mode Switcher: Chat vs Citation Network */}
-                  <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-0.5">
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* <div className="flex rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-0.5" role="tablist" aria-label="View">
                     <button
+                      role="tab"
+                      aria-label="Chat"
+                      aria-selected={activeView === "chat"}
                       onClick={() => setActiveView("chat")}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                        activeView === "chat"
-                          ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
-                          : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        activeView === "chat" ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--foreground)]"
                       }`}
                     >
-                      <MessageSquare size={13} />
-                      <span>Chat</span>
+                      <MessageSquare size={13} /> <span className="hidden sm:inline">Chat</span>
                     </button>
                     <button
+                      role="tab"
+                      aria-label="Citation network"
+                      aria-selected={activeView === "graph"}
                       onClick={() => {
                         if (documents.length > 0 && !selectedPaperForGraph) {
                           openCitationNetworkForDoc(documents[0].filename);
@@ -570,37 +566,25 @@ export default function PaperChatPage() {
                           setActiveView("graph");
                         }
                       }}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                        activeView === "graph"
-                          ? "bg-[var(--accent)] text-[var(--accent-contrast)] shadow-xs font-bold"
-                          : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                      title="Citation network: the papers yours cites and is cited by"
+                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        activeView === "graph" ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--foreground)]"
                       }`}
                     >
-                      <Network size={13} />
-                      <span className="hidden sm:inline">50-Paper Citation Network</span>
-                      <span className="sm:hidden">Network</span>
+                      <Network size={13} /> <span className="hidden 2xl:inline">Citation network</span>
+                      <span className="hidden sm:inline 2xl:hidden">Network</span>
                     </button>
-                  </div>
+                  </div> */}
 
-                  {/* Clear chat history action */}
                   {messages.length > 0 && activeView === "chat" && (
-                    <button
-                      onClick={clearChatHistory}
-                      className="hidden sm:flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--danger)] hover:border-[var(--danger)] transition-all"
-                      title="Clear chat messages"
-                    >
-                      <Trash2 size={13} />
-                      <span>Clear Chat</span>
+                    <button onClick={clearChatHistory} className="btn btn-quiet btn-danger hidden !px-2.5 xl:inline-flex" aria-label="Clear chat" title="Clear chat messages">
+                      <Trash2 size={13} /> Clear
                     </button>
                   )}
 
-                  {/* Opt-in figure analysis (costs API calls) */}
-                  <label
-                    className="hidden lg:flex items-center gap-1.5 text-[11px] text-[var(--muted)] cursor-pointer"
-                    title="A vision model reads each figure in new uploads (about 1 API call per figure, max 30 per paper). Figures are always extracted and searchable by caption."
-                  >
                     <input
                       type="checkbox"
+                      className="accent-[var(--accent)]"
                       checked={analyzeFigures}
                       onChange={(e) => {
                         setAnalyzeFiguresState(e.target.checked);
@@ -608,65 +592,44 @@ export default function PaperChatPage() {
                       }}
                     />
                     Analyze figures
+
+                  <label className="btn btn-secondary hidden cursor-pointer sm:inline-flex">
+                    <Upload size={14} className="text-[var(--accent)]" />
+                    <span className="hidden xl:inline">Upload PDF</span>
+                    <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                   </label>
 
-                  {/* Upload button */}
-                  <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-all hover:border-[var(--accent)] hover:bg-[var(--surface-strong)]">
-                    <Upload size={13} className="text-[var(--accent)]" />
-                    <span className="hidden sm:inline">Upload PDF</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
-                  </label>
-
-                  {/* Toggle Document sidebar button */}
                   <button
-                    onClick={() => setIsDocumentPaneOpen((isOpen) => !isOpen)}
-                    className="flex md:hidden items-center gap-1 rounded-lg bg-[var(--surface-strong)] px-2.5 py-1.5 text-xs font-semibold text-[var(--foreground)]"
+                    onClick={() => setIsDocumentPaneOpen((o) => !o)}
+                    className="btn btn-secondary md:hidden"
+                    aria-label="Show papers"
                   >
-                    <File size={13} />
-                    <span>Papers ({documents.length})</span>
+                    <File size={14} /> {documents.length}
                   </button>
                 </div>
               </div>
 
-              {/* Upload Progress Overlay */}
+              {/* Upload progress */}
               {isUploading && (
-                <div className="absolute right-4 top-14 z-30 w-72 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-2xl animate-in slide-in-from-top-3">
-                  <div className="flex justify-between items-center mb-2.5">
-                    <div className="flex items-center gap-1.5">
+                <div role="status" className="anim-pop absolute right-4 top-16 z-30 w-72 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-[var(--shadow-pop)]">
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
-                        Indexing Papers
-                      </h3>
+                      <h3 className="text-sm font-semibold">Reading your papers</h3>
                     </div>
-                    <button
-                      onClick={() => setIsUploading(false)}
-                      className="text-[var(--muted)] hover:text-[var(--foreground)]"
-                    >
+                    <button onClick={() => setIsUploading(false)} className="text-[var(--muted)] hover:text-[var(--foreground)]" aria-label="Hide progress">
                       <X size={14} />
                     </button>
                   </div>
                   <div className="space-y-2.5">
                     {uploadQueue.map((file, i) => (
                       <div key={i} className="space-y-1">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="w-36 truncate font-medium text-[var(--foreground)]">
-                            {file.name}
-                          </span>
-                          <span className="font-semibold text-[var(--accent)]">
-                            {file.progress}%
-                          </span>
+                        <div className="flex justify-between gap-3 text-xs">
+                          <span className="min-w-0 truncate">{file.name}</span>
+                          <span className="shrink-0 tabular-nums text-[var(--muted)]">{file.progress}%</span>
                         </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-strong)]">
-                          <div
-                            className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
-                            style={{ width: `${file.progress}%` }}
-                          />
+                        <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--surface-strong)]">
+                          <div className="h-full rounded-full bg-[var(--accent)] transition-all duration-300" style={{ width: `${file.progress}%` }} />
                         </div>
                       </div>
                     ))}
@@ -674,9 +637,8 @@ export default function PaperChatPage() {
                 </div>
               )}
 
-              {/* Main Content Pane */}
               {activeView === "graph" ? (
-                <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   <PaperGraphView
                     initialQuery={
                       selectedPaperForGraph ||
@@ -687,189 +649,135 @@ export default function PaperChatPage() {
                   />
                 </div>
               ) : (
-                <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-                  {/* Active Document Helper Banner */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {documents.length > 0 && (
-                    <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-1.5 text-xs">
-                      <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)] px-4 py-1.5 text-xs">
+                      <div className="flex min-w-0 items-center gap-2">
                         <FileText size={13} className="shrink-0 text-[var(--accent)]" />
                         <span className="truncate text-[var(--muted)]">
-                          Active Grounding: <strong className="text-[var(--foreground)]">{documents[0].filename}</strong>
-                          {documents.length > 1 && ` (+${documents.length - 1} more)`}
+                          Answering from <span className="font-medium text-[var(--foreground)]">{documents[0].filename}</span>
+                          {documents.length > 1 && ` and ${documents.length - 1} more`}
                         </span>
                       </div>
                       <button
                         onClick={() => openCitationNetworkForDoc(documents[0].filename)}
-                        className="flex shrink-0 items-center gap-1 font-semibold text-[var(--accent)] hover:underline ml-2"
+                        className="flex shrink-0 items-center gap-1 font-medium text-[var(--accent-strong)] hover:underline"
                       >
-                        <Network size={12} />
-                        <span>Visualize 50-Paper Network</span>
+                        <Network size={12} /> Citation network
                       </button>
                     </div>
                   )}
 
-                  {/* Messages Area */}
-                  <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-6">
+                  {/* Messages */}
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
                     {messages.length === 0 ? (
-                      /* Empty State: Immersive Starter Cards */
-                      <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center space-y-6 py-12 text-center">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)]/10 text-[var(--accent)]">
-                          <Sparkles size={24} />
-                        </div>
-                        <div className="space-y-1">
-                          <h3 className="text-lg font-bold text-[var(--foreground)]">
-                            {documents.length > 0
-                              ? "Ready to query your papers"
-                              : "Start your research dialogue"}
+                      <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-8 py-8">
+                        <div className="space-y-2">
+                          <h3 className="font-serif text-2xl font-semibold tracking-tight">
+                            {documents.length > 0 ? "Ask your papers a question" : "Add a paper to begin"}
                           </h3>
-                          <p className="text-xs text-[var(--muted)] max-w-md">
+                          <p className="max-w-lg text-sm leading-relaxed text-[var(--muted)]">
                             {documents.length > 0
-                              ? "Ask any question about your uploaded research documents or choose an analytical query below."
-                              : "Upload research papers using the button above to ground the AI assistant in your literature."}
+                              ? "Type a question below, or start from one of these."
+                              : "Upload one or more PDFs, then ask anything about them. Answers cite the paper and page they came from."}
                           </p>
                         </div>
-
-                        {/* Starter Prompt Cards */}
-                        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 text-left pt-2">
+                        <ul className="border-t border-[var(--border)]">
                           {STARTER_PROMPTS.map((starter, i) => {
                             const IconComponent = starter.icon;
                             return (
-                              <button
-                                key={i}
-                                onClick={() => handleSendMessage(starter.prompt)}
-                                className="group flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 transition-all hover:border-[var(--accent)] hover:bg-[var(--surface-muted)] hover:shadow-sm"
-                              >
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--accent-contrast)] transition-colors">
-                                    <IconComponent size={13} />
-                                  </div>
-                                  <span className="text-xs font-bold text-[var(--foreground)]">
-                                    {starter.title}
+                              <li key={i} className="border-b border-[var(--border)]">
+                                <button
+                                  onClick={() => handleSendMessage(starter.prompt)}
+                                  disabled={isLoading}
+                                  className="group flex w-full items-start gap-3.5 px-1 py-3.5 text-left transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
+                                >
+                                  <IconComponent size={16} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-semibold group-hover:text-[var(--accent-strong)]">{starter.title}</span>
+                                    <span className="mt-0.5 line-clamp-2 block text-[13px] leading-relaxed text-[var(--muted)]">{starter.prompt}</span>
                                   </span>
-                                </div>
-                                <p className="text-[11px] text-[var(--muted)] line-clamp-2 leading-relaxed">
-                                  {starter.prompt}
-                                </p>
-                              </button>
+                                </button>
+                              </li>
                             );
                           })}
-                        </div>
+                        </ul>
                       </div>
                     ) : (
-                      /* Chat Messages Feed */
-                      messages.map((m, i) => {
-                        const isUser = m.role === "user";
-                        const isHovered = hoveredMessageIndex === i;
-
-                        return (
-                          <div
-                            key={i}
-                            onMouseEnter={() => setHoveredMessageIndex(i)}
-                            onMouseLeave={() => setHoveredMessageIndex(null)}
-                            className={`group mx-auto flex w-full max-w-3xl gap-3 transition-all ${
-                              isUser ? "justify-end" : "justify-start"
-                            }`}
-                          >
-                            {/* Assistant Avatar */}
-                            {!isUser && (
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm mt-0.5">
-                                <Bot size={16} />
-                              </div>
-                            )}
-
-                            {/* Bubble Container */}
-                            <div className={`relative max-w-[85%] ${isUser ? "text-right" : "text-left"}`}>
-                              {/* Header Meta */}
-                              <div className={`flex items-center gap-2 mb-1 px-1 text-[10px] text-[var(--subtle)] ${isUser ? "justify-end" : "justify-start"}`}>
-                                <span className="font-semibold text-[var(--muted)]">
-                                  {isUser ? "You" : "Resector Assistant"}
-                                </span>
-                              </div>
-
-                              {/* Message Body */}
-                              <div
-                                className={`rounded-2xl px-4 py-3.5 text-sm leading-relaxed transition-all shadow-xs ${
-                                  isUser
-                                    ? "bg-[var(--accent)] text-[var(--accent-contrast)] font-medium rounded-tr-xs"
-                                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] rounded-tl-xs"
-                                }`}
-                              >
-                                {isUser ? (
-                                  <div className="whitespace-pre-wrap">{m.content}</div>
-                                ) : (
-                                  <div className="prose text-sm max-w-none break-words">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                      {m.content}
-                                    </ReactMarkdown>
+                      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+                        {messages.map((m, i) => {
+                          const isUser = m.role === "user";
+                          return (
+                            <article
+                              key={i}
+                              className={`group flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                              aria-label={isUser ? "You" : "ReSector"}
+                            >
+                              {isUser ? (
+                                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--accent)] px-4 py-2.5 text-[15px] leading-relaxed text-[var(--accent-contrast)]">
+                                  {m.content}
+                                </div>
+                              ) : (
+                                <div className="w-full">
+                                  <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
+                                    <span className="light-logo"><Image src="/logos/logo-light.png" alt="" width={20} height={20} /></span>
+                                    <span className="dark-logo"><Image src="/logos/logo-dark.png" alt="" width={20} height={20} /></span>
+                                    ReSector
+                                  </div>
+                                  <div className="prose break-words">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                                     <FigureCards figures={m.figures} />
                                   </div>
-                                )}
-                              </div>
+                                </div>
+                              )}
 
-                              {/* Action Toolbar (Copy & Delete Message) */}
-                              <div
-                                className={`flex items-center gap-1.5 mt-1 px-1 transition-opacity ${
-                                  isHovered ? "opacity-100" : "opacity-0"
-                                } ${isUser ? "justify-end" : "justify-start"}`}
-                              >
+                              <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                                 <button
                                   onClick={() => copyMessageContent(m.content, i)}
-                                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] transition-colors"
+                                  className="btn btn-quiet !gap-1 !px-2 !py-1 !text-xs"
                                   title="Copy message"
                                 >
                                   {copiedIndex === i ? (
                                     <>
-                                      <Check size={11} className="text-[var(--success)]" />
+                                      <Check size={12} className="text-[var(--success)]" />
                                       <span className="text-[var(--success)]">Copied</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Copy size={11} />
-                                      <span>Copy</span>
+                                      <Copy size={12} /> Copy
                                     </>
                                   )}
                                 </button>
-
                                 <button
                                   onClick={() => deleteSingleMessage(i, m.id)}
-                                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--danger)] transition-colors"
+                                  className="btn btn-quiet btn-danger !gap-1 !border-transparent !px-2 !py-1 !text-xs"
                                   title="Delete this message"
                                 >
-                                  <Trash2 size={11} />
-                                  <span>Delete</span>
+                                  <Trash2 size={12} /> Delete
                                 </button>
                               </div>
-                            </div>
+                            </article>
+                          );
+                        })}
 
-                            {/* User Avatar */}
-                            {isUser && (
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-strong)] text-[var(--foreground)] border border-[var(--border)] mt-0.5">
-                                <User size={16} />
-                              </div>
-                            )}
+                        {isLoading && (
+                          <div role="status" className="flex items-center gap-3 text-sm text-[var(--muted)]">
+                            <span className="flex items-center gap-1" aria-hidden>
+                              <span className="thinking-dot" />
+                              <span className="thinking-dot" />
+                              <span className="thinking-dot" />
+                            </span>
+                            Reading your papers and writing an answer…
                           </div>
-                        );
-                      })
-                    )}
-
-                    {/* Agent Thinking / Loading Indicator */}
-                    {isLoading && (
-                      <div className="mx-auto flex w-full max-w-3xl gap-3 animate-in fade-in-50 duration-300">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm">
-                          <Bot size={16} />
-                        </div>
-                        <div className="rounded-2xl rounded-tl-xs border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-xs text-[var(--muted)] shadow-xs flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
-                          <span>Synthesizing paper context and formulating response...</span>
-                        </div>
+                        )}
                       </div>
                     )}
                     <div ref={scrollRef} />
                   </div>
 
-                  {/* Input & Prompt Area */}
-                  <div className="border-t border-[var(--border)] bg-[var(--surface)] p-3 sm:p-4 shrink-0">
-                    <div className="relative mx-auto max-w-3xl">
+                  {/* Composer */}
+                  <div className="shrink-0 bg-[var(--background)] px-4 pb-4 pt-2 sm:px-8">
+                    <div className="mx-auto max-w-3xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)] transition-colors focus-within:border-[var(--accent)]">
                       <textarea
                         ref={textareaRef}
                         value={input}
@@ -880,139 +788,91 @@ export default function PaperChatPage() {
                             handleSendMessage();
                           }
                         }}
-                        placeholder="Ask anything about your research papers, extract methodologies, synthesize findings..."
-                        rows={2}
-                        className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--background)] p-3.5 pb-10 pr-24 text-sm text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none transition-all shadow-inner"
+                        placeholder="Ask about your papers: findings, methods, limitations…"
+                        aria-label="Message"
+                        rows={1}
+                        className="block max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[15px] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:!outline-none"
                       />
-
-                      {/* Footer Actions Inside Input Box */}
-                      <div className="absolute bottom-2.5 left-3 flex items-center gap-2">
-                        <label
-                          className="flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-[var(--surface-muted)] px-2.5 text-[11px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
-                          title="Attach PDFs"
-                        >
-                          <Paperclip size={13} />
-                          <span>Attach PDF</span>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf"
-                            className="hidden"
-                            onChange={handleFileUpload}
-                          />
+                      <div className="flex items-center justify-between px-2.5 pb-2.5">
+                        <label className="btn btn-quiet cursor-pointer !px-2.5 !py-1.5 !text-xs" title="Attach PDFs">
+                          <Paperclip size={14} /> Attach PDF
+                          <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                         </label>
-                      </div>
-
-                      <div className="absolute bottom-2.5 right-3 flex items-center gap-2">
-                        <button
-                          onClick={() => handleSendMessage()}
-                          disabled={isLoading || !input.trim()}
-                          aria-label="Send message"
-                          className="flex items-center gap-1.5 rounded-xl bg-[var(--accent)] px-3.5 py-1.5 text-xs font-bold text-[var(--accent-contrast)] shadow-sm transition-all hover:bg-[var(--accent-strong)] disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="animate-spin" size={13} />
-                              <span>Thinking</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>Send</span>
-                              <Send size={12} />
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <span className="hidden text-xs text-[var(--subtle)] sm:inline">Enter to send · Shift+Enter for a new line</span>
+                          <button
+                            onClick={() => handleSendMessage()}
+                            disabled={isLoading || !input.trim()}
+                            aria-label="Send message"
+                            className="btn btn-primary !rounded-full !px-3.5"
+                          >
+                            {isLoading ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                            <span>{isLoading ? "Thinking" : "Send"}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Right Sidebar: Uploaded Papers & Grounding */}
-            <div
-              className={`${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-72 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] max-lg:w-60 max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 shadow-lg md:shadow-none transition-all`}
+            {/* Papers */}
+            <aside
+              aria-label="Papers"
+              className={`${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] max-lg:w-56 max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
             >
-              <div className="flex items-center justify-between border-b border-[var(--border)] p-3">
-                <div className="flex items-center gap-1.5">
-                  <FileText size={14} className="text-[var(--accent)]" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                    Papers ({documents.length})
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setIsDocumentPaneOpen(false)}
-                  className="md:hidden p-1 text-[var(--muted)] hover:text-[var(--foreground)]"
-                >
+              <div className="flex items-center justify-between px-4 py-3">
+                <h3 className="text-sm font-semibold">Papers <span className="font-normal text-[var(--muted)]">({documents.length})</span></h3>
+                <button onClick={() => setIsDocumentPaneOpen(false)} className="icon-btn !h-8 !w-8 md:hidden" aria-label="Close papers">
                   <X size={15} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+              <ul className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)]">
                 {documents.length === 0 ? (
-                  <div className="py-12 text-center space-y-2">
-                    <BookOpen size={24} className="mx-auto text-[var(--subtle)]" />
-                    <p className="text-xs font-medium text-[var(--subtle)]">
-                      No papers uploaded yet.
-                    </p>
-                    <label className="inline-block cursor-pointer rounded-lg bg-[var(--surface-muted)] px-3 py-1.5 text-[11px] font-semibold text-[var(--accent)] hover:bg-[var(--surface-strong)] transition-colors">
+                  <li className="space-y-3 px-4 py-10 text-center">
+                    <BookOpen size={22} className="mx-auto text-[var(--subtle)]" />
+                    <p className="text-xs text-[var(--muted)]">No papers in this session yet.</p>
+                    <label className="btn btn-secondary cursor-pointer !text-xs">
                       Upload PDF
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                      />
+                      <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                     </label>
-                  </div>
+                  </li>
                 ) : (
                   documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="group flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 transition-all hover:border-[var(--accent)] hover:shadow-xs"
-                    >
+                    <li key={doc.id} className="group border-b border-[var(--border)] px-4 py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 overflow-hidden">
-                          <File
-                            size={14}
-                            className="shrink-0 text-[var(--accent)] mt-0.5"
-                          />
-                          <span
-                            className="text-xs font-semibold text-[var(--foreground)] line-clamp-2"
-                            title={doc.filename}
-                          >
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <File size={14} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+                          <span className="line-clamp-3 text-[13px] font-medium leading-snug" title={doc.filename}>
                             {doc.filename}
                           </span>
                         </div>
                         <button
                           onClick={() => deleteDocument(doc.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-[var(--subtle)] hover:text-[var(--danger)] hover:bg-[var(--surface-strong)] rounded-md transition-all shrink-0"
-                          title="Delete paper"
+                          className="shrink-0 rounded-md p-1 text-[var(--subtle)] opacity-0 transition-opacity hover:bg-[var(--surface-muted)] hover:text-[var(--danger)] focus-visible:opacity-100 group-hover:opacity-100"
+                          title="Remove paper"
+                          aria-label={`Remove ${doc.filename}`}
                         >
                           <Trash2 size={13} />
                         </button>
                       </div>
-
-                      {/* View 50-Paper Citation Network Action */}
                       <button
                         onClick={() => openCitationNetworkForDoc(doc.filename)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface)] py-1.5 text-[11px] font-bold text-[var(--accent)] border border-[var(--border)] transition-all hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)] hover:border-[var(--accent)] shadow-xs active:scale-[0.98]"
-                        title="Generate and explore 50-Paper Citation Network"
+                        className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[var(--accent-strong)] hover:underline"
+                        title="Explore the papers this one cites and is cited by"
                       >
-                        <Network size={12} />
-                        <span>50-Paper Network</span>
+                        <Network size={12} /> Citation network
                       </button>
-                    </div>
+                    </li>
                   ))
                 )}
-              </div>
-            </div>
+              </ul>
+            </aside>
           </>
         )}
       </div>
     </div>
   );
 }
-
-

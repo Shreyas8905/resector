@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
+import { ToolLayout, ToolInput, ToolOutput, ToolStatus } from "./ToolUI";
 import DocumentPicker from "./DocumentPicker";
 import ErrorNotice from "./ErrorNotice";
 import { getConfig, processDocument } from "../lib/documentApi";
@@ -110,39 +110,37 @@ export default function CritiqueTool() {
         />
         <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
 
-        <div className="space-y-3">
-          <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
-            Select Reviewer Persona
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {PERSONAS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPersona(p.id)}
-                className={`p-3 text-left rounded-lg border transition-all ${
-                  persona === p.id
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]"
-                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)]"
-                }`}
-              >
-                <p className="text-sm font-bold">{p.label}</p>
-                <p className="text-[10px] opacity-70">{p.desc}</p>
-              </button>
-            ))}
+        <fieldset>
+          <legend className="field-label">Who should review it?</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup">
+            {PERSONAS.map((p) => {
+              const on = persona === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setPersona(p.id)}
+                  className={`rounded-[var(--radius-control)] border px-3.5 py-3 text-left transition-colors ${
+                    on
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${on ? "text-[var(--accent-strong)]" : ""}`}>{p.label}</p>
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">{p.desc}</p>
+                </button>
+              );
+            })}
           </div>
-        </div>
-        {isLoading
-          ? file
-            ? "Reading document, this can take a few minutes..."
-            : "Reviewing..."
-          : ""}
-        {error && (
-          <ErrorNotice error={error} />
-        )}
+        </fieldset>
+        <ToolStatus text={isLoading ? (file ? "Reading document, this can take a few minutes..." : "Reviewing...") : ""} />
+        {error && <ErrorNotice error={error} />}
         <button
           onClick={handleProcess}
           disabled={isLoading || (!input.trim() && !file)}
-          className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-primary btn-lg w-full"
         >
           {isLoading ? "Reviewing…" : "Review"}
         </button>

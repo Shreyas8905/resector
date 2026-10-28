@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Upload, X } from "lucide-react";
+import { FileText, Upload, X } from "lucide-react";
 import { getAnalyzeFigures, setAnalyzeFigures } from "../lib/figureSettings";
 
 export default function DocumentPicker({
@@ -25,21 +25,18 @@ export default function DocumentPicker({
         className="hidden"
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}
       />
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => ref.current?.click()}
-        className="flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 hover:bg-white/10 disabled:opacity-50"
-      >
-        <Upload size={16} />
+      <button type="button" disabled={disabled} onClick={() => ref.current?.click()} className="btn btn-secondary">
+        <Upload size={15} />
         {file ? "Change document" : "Upload a PDF instead"}
       </button>
       {file && (
-        <span className="flex items-center gap-2 opacity-80">
-          {file.name}
+        <span className="flex max-w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-muted)] py-1.5 pl-2.5 pr-1.5 text-[13px]">
+          <FileText size={14} className="shrink-0 text-[var(--accent)]" />
+          <span className="truncate">{file.name}</span>
           <button
             type="button"
             aria-label="Remove document"
+            className="rounded p-0.5 text-[var(--muted)] hover:text-[var(--foreground)]"
             onClick={() => {
               onChange(null);
               if (ref.current) ref.current.value = "";
@@ -51,11 +48,12 @@ export default function DocumentPicker({
       )}
       {file && file.name.toLowerCase().endsWith(".pdf") && (
         <label
-          className="flex items-center gap-1.5 text-xs opacity-80"
+          className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--muted)]"
           title="A vision model reads each figure (about 1 API call per figure). Figures the answer mentions are shown under it."
         >
           <input
             type="checkbox"
+            className="accent-[var(--accent)]"
             checked={analyze}
             onChange={(e) => {
               setAnalyze(e.target.checked);

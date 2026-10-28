@@ -409,7 +409,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   if (!dash) return <div className="flex items-center gap-2 p-8 text-sm text-[var(--muted)]"><Loader2 size={15} className="animate-spin" /> Opening dashboard…</div>;
 
   const readerDoc = reader ? documents.find((d) => d.id === reader.documentId) : null;
-  const tb = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:opacity-40";
+  const tb = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-40 disabled:hover:bg-transparent";
 
   return (
     <CanvasContext.Provider value={ctx}>
@@ -417,7 +417,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2">
           <button onClick={onBack} className={tb} title="All dashboards"><ArrowLeft size={14} /> Dashboards</button>
           <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={renameDashboard}
-            className="min-w-0 max-w-xs flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-semibold outline-none hover:border-[var(--border)] focus:border-[var(--border-strong)]" />
+            aria-label="Dashboard name" className="min-w-0 max-w-xs flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-serif text-base font-semibold outline-none hover:border-[var(--border)] focus:border-[var(--accent)]" />
           <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
             {saveState === "saving" && <><Loader2 size={12} className="animate-spin" /> Saving…</>}
             {saveState === "saved" && <><Check size={12} /> Saved</>}
@@ -427,7 +427,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             <div className="relative">
               <Search size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && jumpToHits()}
-                placeholder="Find on canvas" className="w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-7 pr-2 text-xs outline-none focus:border-[var(--border-strong)]" />
+                placeholder="Find on canvas" aria-label="Find on canvas" className="w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-7 pr-2 text-xs outline-none focus:border-[var(--accent)]" />
             </div>
             <button className={tb} onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
             <button className={tb} onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Shift+Z)"><Redo2 size={14} /></button>
@@ -463,7 +463,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
             {/* add toolbar */}
             <div className="pointer-events-none absolute left-0 right-0 top-3 z-10 flex justify-center">
-              <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-md">
+              <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-pop)]">
                 <button className={tb} onClick={() => fileInput.current?.click()}><Upload size={14} /> Add papers</button>
                 <button className={tb} onClick={() => setImportOpen(true)}><Library size={14} /> From my library</button>
                 <span className="mx-1 h-5 w-px bg-[var(--border)]" />
@@ -477,7 +477,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
             {/* link inspector */}
             {selectedEdge && (
-              <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+              <div className="anim-pop absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-[var(--shadow-pop)]">
                 <span className="px-1 text-xs text-[var(--muted)]">This link:</span>
                 {EDGE_KINDS.map((k) => (
                   <button key={k.id} onClick={() => { snapshot(); patchEdge(selectedEdge.id, { kind: k.id }); }}
@@ -493,8 +493,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
             {nodes.length === 0 && !busy && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="max-w-sm rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)]/90 p-6 text-center">
-                  <FilePlus2 size={26} className="mx-auto mb-2 text-[var(--muted)]" />
+                <div className="max-w-sm rounded-[var(--radius-panel)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)]/90 p-6 text-center">
+                  <FilePlus2 size={26} className="mx-auto mb-2 text-[var(--accent)]" />
                   <p className="text-sm font-medium">Drop your PDFs here</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">Add the papers you are reading, open one to save quotes and figures, then draw links between the ideas that connect. Add a “My research” card to show where your own work fits.</p>
                 </div>
@@ -576,8 +576,8 @@ function ImportDialog({ dashboardId, onClose, onImport }: { dashboardId: string;
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => { dashboardApi.library(dashboardId).then(setPapers).catch(() => setPapers([])); }, [dashboardId]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
+      <div className="anim-pop flex max-h-[80vh] w-full max-w-md flex-col rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-pop)]" onClick={(e) => e.stopPropagation()}>
         <div className="border-b border-[var(--border)] p-4"><h3 className="text-sm font-semibold">Add papers you already uploaded</h3>
           <p className="mt-0.5 text-xs text-[var(--muted)]">These come from your other chats and dashboards. Each dashboard gets its own copy.</p></div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">

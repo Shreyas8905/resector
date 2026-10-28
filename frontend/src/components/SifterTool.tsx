@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { FileSearch } from "lucide-react";
-import { ToolLayout, ToolInput, ToolOutput } from "./ToolUI";
+import { ToolLayout, ToolInput, ToolOutput, ToolStatus } from "./ToolUI";
 import DocumentPicker from "./DocumentPicker";
 import ErrorNotice from "./ErrorNotice";
 import { getConfig, processDocument } from "../lib/documentApi";
@@ -76,20 +76,14 @@ export default function SifterTool() {
         value={input}
         onChange={setInput}
       />
-      {isLoading
-        ? file
-          ? "Reading your document. This can take a few minutes…"
-          : "Working…"
-        : ""}
-      {error && (
-        <ErrorNotice error={error} />
-      )}
+      <ToolStatus text={isLoading ? (file ? "Reading your document. This can take a few minutes…" : "Working…") : ""} />
+      {error && <ErrorNotice error={error} />}
       <DocumentPicker file={file} onChange={setFile} disabled={isLoading} />
 
       <button
         onClick={handleProcess}
         disabled={isLoading || (!input.trim() && !file)}
-        className="w-full rounded-xl bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="btn btn-primary btn-lg w-full"
       >
         {isLoading ? "Working…" : "Summarize"}
       </button>

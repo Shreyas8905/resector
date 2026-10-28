@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { History, Search } from "lucide-react";
+import { History, Loader2, Search } from "lucide-react";
 import { ToolLayout } from "./ToolUI";
 
 interface HistoryResult {
@@ -52,58 +52,43 @@ export default function ResearchHistory() {
       description="Search everything you have run before, by meaning rather than exact words."
       icon={<History size={20} />}
     >
-      <div className="flex gap-2 mb-8">
+      <div className="mb-8 flex gap-2">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && searchHistory()}
-          placeholder="Search past research findings..."
-          className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--foreground)] transition-all placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
+          placeholder="Search past findings, e.g. “limitations of the sample size”"
+          aria-label="Search past results"
+          className="field !py-2.5 !text-[15px]"
         />
         <button
           onClick={searchHistory}
           disabled={isLoading || !query.trim()}
-          className="rounded-xl bg-[var(--accent)] px-6 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
+          aria-label="Search"
+          className="btn btn-primary !px-4"
         >
-          {isLoading ? "..." : <Search size={20} />}
+          {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Search
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">
-          {error}
-        </div>
-      )}
+      {error && <div role="alert" className="mb-4 rounded-[var(--radius-control)] border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]">{error}</div>}
 
       <div className="space-y-4">
         {!hasSearched && !isLoading && (
-          <p className="py-12 text-center text-[var(--muted)]">
-            Enter a search query to find past research snippets.
-          </p>
+          <p className="py-12 text-center text-sm text-[var(--muted)]">Search by meaning, not exact words. Results come from everything you have run before.</p>
         )}
         {hasSearched && results.length === 0 && !isLoading && (
-          <p className="py-12 text-center text-[var(--muted)]">
-            No matching research snippets found.
-          </p>
+          <p className="py-12 text-center text-sm text-[var(--muted)]">Nothing matched. Try describing the idea in different words.</p>
         )}
         {results.map((res, idx) => (
-          <div
-            key={`result-${idx}-${res.tool || "unknown"}`}
-            className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]"
-          >
-            <div className="flex justify-between items-center mb-2">
-              <span className="rounded bg-[var(--surface-muted)] px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
-                {res.tool || "unknown"}
-              </span>
-              <span className="text-[10px] text-[var(--subtle)]">
-                {res.date}
-              </span>
+          <article key={`result-${idx}-${res.tool || "unknown"}`} className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
+              <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 font-medium capitalize text-[var(--accent-strong)]">{res.tool || "unknown"}</span>
+              <span>{res.date}</span>
             </div>
-            <div className="whitespace-pre-wrap text-sm text-[var(--foreground)]">
-              {res.content}
-            </div>
-          </div>
+            <div className="whitespace-pre-wrap font-serif text-base leading-relaxed">{res.content}</div>
+          </article>
         ))}
       </div>
     </ToolLayout>

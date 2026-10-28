@@ -3,6 +3,7 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Loader2 } from "lucide-react";
 
 interface ToolOutputProps {
   content: string;
@@ -21,14 +22,12 @@ export function ToolLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="rounded-lg bg-[var(--surface-strong)] p-2 text-[var(--accent-strong)]">
-          {icon}
-        </div>
+    <div className="mx-auto max-w-3xl space-y-7">
+      <div className="flex items-start gap-4 border-b border-[var(--border)] pb-6">
+        <div className="mt-1 text-[var(--accent)]">{icon}</div>
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-          <p className="text-sm text-[var(--muted)]">{description}</p>
+          <h2 className="font-serif text-[1.75rem] font-semibold leading-tight tracking-tight">{title}</h2>
+          <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">{description}</p>
         </div>
       </div>
       {children}
@@ -47,28 +46,40 @@ export function ToolInput({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const id = React.useId();
   return (
-    <div className="space-y-2">
-      <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+    <div>
+      <label htmlFor={id} className="field-label">
         {label}
       </label>
       <textarea
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-40 w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-[var(--foreground)] shadow-[var(--shadow)] transition-all placeholder:text-[var(--subtle)] focus:border-[var(--accent)] focus:outline-none"
+        className="field h-44 resize-y !p-4 !text-[15px] leading-relaxed"
       />
     </div>
+  );
+}
+
+/** Inline progress line shown while a tool is working. */
+export function ToolStatus({ text }: { text: string }) {
+  if (!text) return null;
+  return (
+    <p role="status" className="flex items-center gap-2 text-sm text-[var(--muted)]">
+      <Loader2 size={14} className="animate-spin text-[var(--accent)]" /> {text}
+    </p>
   );
 }
 
 export function ToolOutput({ content, isLoading }: ToolOutputProps) {
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
-        <div className="h-4 w-3/4 rounded bg-[var(--surface-strong)]" />
-        <div className="h-4 w-1/2 rounded bg-[var(--surface-strong)]" />
-        <div className="h-4 w-5/6 rounded bg-[var(--surface-strong)]" />
+      <div className="animate-pulse space-y-3 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6" aria-hidden>
+        <div className="h-3.5 w-3/4 rounded bg-[var(--surface-strong)]" />
+        <div className="h-3.5 w-1/2 rounded bg-[var(--surface-strong)]" />
+        <div className="h-3.5 w-5/6 rounded bg-[var(--surface-strong)]" />
       </div>
     );
   }
@@ -76,18 +87,20 @@ export function ToolOutput({ content, isLoading }: ToolOutputProps) {
   if (!content) return null;
 
   return (
-    <div className="prose max-w-none rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-          // eslint-disable-next-line @next/next/no-img-element, @typescript-eslint/no-unused-vars
-          img: ({ node, ...props }) => <img {...props} alt={props.alt || ""} className="my-2 max-h-96 rounded bg-white" />,
-        }}
-      >
-        {content}
-      </ReactMarkdown>
+    <div className="anim-fade rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] px-6 py-6 sm:px-8">
+      <div className="prose max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+            // eslint-disable-next-line @next/next/no-img-element, @typescript-eslint/no-unused-vars
+            img: ({ node, ...props }) => <img {...props} alt={props.alt || ""} />,
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }

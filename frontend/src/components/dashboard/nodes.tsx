@@ -27,7 +27,7 @@ function Shell({ id, selected, children, className = "", accent }: {
   const n = commentCounts.get(id) || 0;
   return (
     <div
-      className={`group relative rounded-xl border bg-[var(--surface)] shadow-sm transition-opacity ${selected ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/30" : "border-[var(--border)]"} ${dim ? "opacity-25" : ""} ${className}`}
+      className={`group relative rounded-xl border bg-[var(--surface)] shadow-[0_1px_2px_rgb(27_52_91/0.08)] transition-[opacity,box-shadow] ${selected ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/30" : "border-[var(--border)]"} ${dim ? "opacity-25" : ""} ${className}`}
       style={accent ? { borderTopColor: accent, borderTopWidth: 3 } : undefined}
     >
       <Handles />
@@ -172,7 +172,7 @@ export function ClaimNode({ id, data, selected }: NodeProps) {
   return (
     <Shell id={id} selected={selected} className="w-[300px] !border-[#7c3aed]/40" accent="#7c3aed">
       <div className="p-3">
-        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#7c3aed]"><Target size={12} /> My research</div>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[#7c3aed]"><Target size={13} /> My research</div>
         <Text id={id} field="text" value={d.text ?? ""} placeholder="State your claim or research question…" rows={3} className="!text-[15px] !font-medium" />
         <select value={d.status ?? "idea"} onFocus={snapshot} onChange={(e) => update(id, { status: e.target.value })}
           className="nodrag mt-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs">

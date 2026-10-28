@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Settings, X } from "lucide-react";
 import { friendlyError } from "../lib/errors";
 
 interface Config {
@@ -55,8 +56,7 @@ function loadConfig(): Config {
   return EMPTY_CONFIG;
 }
 
-const inputClass =
-  "w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none";
+const inputClass = "field";
 
 export default function SettingsDrawer() {
   const [isOpen, setIsOpen] = useState(false);
@@ -212,29 +212,32 @@ export default function SettingsDrawer() {
           setConfig(loadConfig());
           setIsOpen(true);
         }}
-        className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+        className="btn btn-quiet !text-[13px]"
+        title="Settings"
       >
-        Settings
+        <Settings size={16} />
+        <span className="hidden sm:inline">Settings</span>
       </button>
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
+          className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-[2px]"
           onClick={handleBackdropClick}
         >
           <div
             role="dialog"
             aria-label="Settings"
-            className="h-full w-full max-w-md overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl animate-in slide-in-from-right duration-300 sm:p-8"
+            aria-modal="true"
+            className="anim-slide-in h-full w-full max-w-md overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-pop)] sm:p-8"
           >
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">Settings</h2>
+              <h2 className="font-serif text-2xl font-semibold tracking-tight">Settings</h2>
               <button
                 onClick={close}
                 aria-label="Close settings"
-                className="text-2xl text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+                className="icon-btn"
               >
-                &times;
+                <X size={18} />
               </button>
             </div>
 
@@ -292,7 +295,7 @@ export default function SettingsDrawer() {
                   <button
                     onClick={validateKey}
                     disabled={isValidating || !config.apiKey.trim()}
-                    className="rounded-lg bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)] disabled:opacity-50"
+                    className="btn btn-secondary shrink-0"
                   >
                     {isValidating ? "Testing…" : "Test key"}
                   </button>
@@ -310,16 +313,16 @@ export default function SettingsDrawer() {
               <button
                 onClick={saveActiveConfig}
                 disabled={!config.apiKey.trim()}
-                className="w-full rounded-lg bg-[var(--accent)] py-3 font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
+                className="btn btn-primary btn-lg w-full"
               >
                 Save and start
               </button>
 
-              <details className="rounded-lg border border-[var(--border)] p-3">
+              <details className="rounded-[var(--radius-control)] border border-[var(--border)] p-3.5">
                 <summary className="cursor-pointer text-sm font-semibold">Advanced options</summary>
                 <div className="mt-4 space-y-5">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                    <label className="field-label">
                       AI model (leave empty for the default)
                     </label>
                     <input
@@ -332,7 +335,7 @@ export default function SettingsDrawer() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                    <label className="field-label">
                       Web search key (optional)
                     </label>
                     <p className="mb-2 text-xs text-[var(--subtle)]">
@@ -358,7 +361,7 @@ export default function SettingsDrawer() {
                       <button
                         onClick={validateTavilyKey}
                         disabled={isTavilyValidating || !config.tavilyApiKey.trim()}
-                        className="rounded-lg bg-[var(--surface-strong)] px-3 py-2 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)] disabled:opacity-50"
+                        className="btn btn-secondary shrink-0"
                       >
                         {isTavilyValidating ? "Testing…" : "Test"}
                       </button>
@@ -374,7 +377,7 @@ export default function SettingsDrawer() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">
+                    <label className="field-label">
                       Semantic Scholar key (optional)
                     </label>
                     <input
@@ -398,7 +401,7 @@ export default function SettingsDrawer() {
                       />
                       <button
                         onClick={saveCurrentConfig}
-                        className="rounded-lg bg-[var(--surface-strong)] px-4 py-2 text-xs font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--border-strong)]"
+                        className="btn btn-secondary shrink-0"
                       >
                         Save
                       </button>
@@ -410,16 +413,16 @@ export default function SettingsDrawer() {
                       savedConfigs.map((saved, i) => (
                         <div
                           key={saved.name + i}
-                          className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3"
+                          className="flex items-center justify-between rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-muted)] p-3"
                         >
                           <div>
                             <p className="text-sm font-medium">{saved.name}</p>
-                            <p className="text-[10px] uppercase text-[var(--muted)]">{saved.provider}</p>
+                            <p className="text-xs capitalize text-[var(--muted)]">{saved.provider}</p>
                           </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => applyConfig(saved)}
-                              className="p-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                              className="btn btn-quiet !px-2.5 !py-1"
                             >
                               Use
                             </button>
@@ -428,7 +431,7 @@ export default function SettingsDrawer() {
                               aria-label={`Delete profile ${saved.name}`}
                               className="p-2 text-[var(--subtle)] hover:text-[var(--danger)]"
                             >
-                              &times;
+                              <X size={14} />
                             </button>
                           </div>
                         </div>
