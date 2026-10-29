@@ -6,7 +6,7 @@ import math
 import re
 from typing import Any, Optional
 
-NODE_TYPES = {"paper", "excerpt", "note", "claim", "frame"}
+NODE_TYPES = {"paper", "excerpt", "note", "claim", "frame", "answer", "table"}
 EDGE_KINDS = {"related", "supports", "contradicts", "extends", "method", "cites", "custom"}
 MAX_NODES = 2000
 MAX_EDGES = 5000

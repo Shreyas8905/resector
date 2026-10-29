@@ -2,9 +2,10 @@
 
 import React from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
-import { ChevronDown, ChevronRight, FileText, Loader2, MessageSquare, Quote, Target, ImageIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Loader2, MessageSquare, Quote, Sparkles, Target, ImageIcon, Table2, MessagesSquare } from "lucide-react";
 import { useCanvas } from "./context";
-import { dashboardApi } from "@/lib/dashboardApi";
+import { dashboardApi, type Cite, type TableRow } from "@/lib/dashboardApi";
+import CitedMarkdown from "./CitedMarkdown";
 
 const handle = "!h-2.5 !w-2.5 !border-2 !border-[var(--surface)] !bg-[var(--accent)]";
 
@@ -59,8 +60,9 @@ function Text({ id, value, field: key, placeholder, rows = 3, className = "" }: 
 
 // ---------------------------------------------------------------- paper
 export function PaperNode({ id, data, selected }: NodeProps) {
-  const { docs, excerpts, openReader, update } = useCanvas();
-  const d = data as { document_id: number; expanded?: boolean; note?: string };
+  const { docs, excerpts, openReader, update, summarize, summarizing, openPage } = useCanvas();
+  const d = data as { document_id: number; expanded?: boolean; note?: string; summary?: string };
+  const working = summarizing.has(id);
   const doc = docs.get(d.document_id);
   const mine = Array.from(excerpts.values()).filter((e) => e.document_id === d.document_id);
   const indexing = doc && doc.status !== "completed" && doc.status !== "failed";
@@ -82,14 +84,24 @@ export function PaperNode({ id, data, selected }: NodeProps) {
           {d.expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
       </div>
-      <div className="px-3 pb-3">
+      <div className="flex gap-2 px-3 pb-3">
         <button disabled={!doc || doc.status === "failed"} onClick={() => openReader(d.document_id)}
-          className="nodrag w-full rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--surface-muted)] disabled:opacity-50">
+          className="nodrag flex-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--surface-muted)] disabled:opacity-50">
           Open and read
+        </button>
+        <button disabled={!doc || doc.status !== "completed" || working} onClick={() => summarize(id)}
+          title="Write a short summary with page references"
+          className="nodrag flex items-center justify-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--surface-muted)] disabled:opacity-50">
+          {working ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} {d.summary ? "Redo summary" : "Summarize"}
         </button>
       </div>
       {d.expanded && (
         <div className="space-y-2 border-t border-[var(--border)] p-3">
+          {d.summary && (
+            <div className="nowheel max-h-64 overflow-y-auto rounded-md bg-[var(--surface-muted)] p-2.5">
+              <CitedMarkdown text={d.summary} className="prose prose-compact text-[13px]" onPage={(pg) => openPage(d.document_id, pg)} />
+            </div>
+          )}
           <Text id={id} field="note" value={d.note ?? ""} placeholder="Your notes on this paper…" rows={3} />
           {mine.length > 0 && (
             <ul className="space-y-1.5">
@@ -201,4 +213,77 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   );
 }
 
-export const nodeTypes = { paper: PaperNode, excerpt: ExcerptNode, note: NoteNode, claim: ClaimNode, frame: FrameNode };
+// ---------------------------------------------------------------- pinned answer
+export function AnswerNode({ id, data, selected }: NodeProps) {
+  const { openCite } = useCanvas();
+  const d = data as { question?: string; answer?: string; cites?: Cite[]; note?: string };
+  return (
+    <Shell id={id} selected={selected} className="w-[340px]" accent="#16a34a">
+      <div className="p-3">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[#16a34a]"><MessagesSquare size={13} /> From your papers</div>
+        {d.question && <p className="mb-1.5 text-sm font-medium leading-snug">{d.question}</p>}
+        <div className="nowheel max-h-72 overflow-y-auto">
+          <CitedMarkdown text={d.answer ?? ""} className="prose prose-compact text-[13px]"
+            onCite={(n) => { const c = d.cites?.find((x) => x.n === n); if (c) openCite(c); }} />
+        </div>
+        <Text id={id} field="note" value={d.note ?? ""} placeholder="Add a thought…" rows={2} className="mt-1" />
+      </div>
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------- comparison table
+export function TableNode({ id, data, selected }: NodeProps) {
+  const { openCite, openReader } = useCanvas();
+  const d = data as { title?: string; columns?: string[]; rows?: TableRow[] };
+  const cols = d.columns ?? [], rows = d.rows ?? [];
+  return (
+    <Shell id={id} selected={selected} className="w-[760px]" accent="#0891b2">
+      <div className="p-3">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <Table2 size={14} className="text-[#0891b2]" />
+          <Text id={id} field="title" value={d.title ?? ""} placeholder="Comparison" rows={1} className="!font-semibold" />
+        </div>
+        <div className="nowheel max-h-[460px] overflow-auto rounded-md border border-[var(--border)]">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead className="sticky top-0 bg-[var(--surface-muted)]">
+              <tr>
+                <th className="min-w-[130px] border-b border-[var(--border)] px-2 py-1.5 font-semibold">Paper</th>
+                {cols.map((c) => <th key={c} className="min-w-[150px] border-b border-l border-[var(--border)] px-2 py-1.5 font-semibold">{c}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.document_id} className="align-top">
+                  <td className="border-b border-[var(--border)] px-2 py-1.5">
+                    <button className="nodrag text-left font-medium text-[var(--accent)] hover:underline" onClick={() => openReader(r.document_id)}>
+                      {r.filename.replace(/\.pdf$/i, "")}
+                    </button>
+                  </td>
+                  {cols.map((c) => {
+                    const cell = r.cells[c];
+                    const empty = !cell || cell.text.startsWith("Not stated");
+                    return (
+                      <td key={c} className={`border-b border-l border-[var(--border)] px-2 py-1.5 ${empty ? "text-[var(--subtle)]" : ""}`}>
+                        {cell?.text ?? "—"}
+                        {cell?.cites.map((ct) => (
+                          <button key={ct.n} className="nodrag mx-0.5 rounded bg-[var(--accent-soft)] px-1 text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)]"
+                            title={ct.quote} onClick={() => openCite(ct)}>
+                            {ct.page ? `p.${ct.page}` : "src"}
+                          </button>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-1.5 text-[10px] text-[var(--subtle)]">Filled by AI from each paper’s text. Click a page tag to check the source.</p>
+      </div>
+    </Shell>
+  );
+}
+
+export const nodeTypes = { paper: PaperNode, excerpt: ExcerptNode, note: NoteNode, claim: ClaimNode, frame: FrameNode, answer: AnswerNode, table: TableNode };

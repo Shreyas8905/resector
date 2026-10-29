@@ -7,12 +7,18 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  ArrowLeft, Check, Download, FilePlus2, Frame, Library, Loader2, MessageSquare, Redo2, Search,
-  StickyNote, Target, Trash2, Undo2, Upload, X,
+  ArrowLeft, Check, Download, FilePlus2, Frame, Gauge, Library, Loader2, MessageSquare, Redo2, Search,
+  Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import {
-  dashboardApi, type CommentInfo, type DashboardFull, type DocInfo, type ExcerptInfo,
+  aiConfig, dashboardApi, type Cite, type CommentInfo, type DashboardFull, type DocInfo, type ExcerptInfo,
+  type TableRow, type UsageTotals,
 } from "@/lib/dashboardApi";
+import { formatTokens } from "@/lib/citations";
+import { friendlyError, openSettings } from "@/lib/errors";
+import { useDialogs } from "@/components/ui/Dialogs";
+import AskPanel from "./AskPanel";
+import CompareDialog from "./CompareDialog";
 import type { Rect } from "@/lib/rects";
 import { CanvasContext, EDGE_KINDS, type CanvasCtx } from "./context";
 import { nodeTypes } from "./nodes";
@@ -88,6 +94,11 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [askOpen, setAskOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [usage, setUsage] = useState<UsageTotals | null>(null);
+  const [summarizing, setSummarizing] = useState<Set<string>>(new Set());
+  const { confirm, notify, dialogs } = useDialogs();
   const fileInput = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +130,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
       lastSaved.current = JSON.stringify(serialize(ns, es));
       loaded.current = true;
       window.setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1 }), 50);
+      dashboardApi.usage(dashboardId).then((u) => !off && setUsage(u)).catch(() => {});
     }).catch((e) => !off && setLoadError(e.message || "Could not open this dashboard."));
     return () => { off = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,6 +272,71 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     setReader({ documentId, focus: excerptId ? { excerptId, nonce: Date.now() } : null });
   }, []);
 
+  const refreshUsage = useCallback(() => {
+    dashboardApi.usage(dashboardId).then(setUsage).catch(() => {});
+  }, [dashboardId]);
+
+  // A citation chip was clicked: open the paper at that passage (finding its exact position if needed).
+  const openCite = useCallback(async (c: Cite) => {
+    let page = c.page ?? null;
+    let rects = c.rects ?? [];
+    if (!rects.length || !page) {
+      try {
+        const r = await dashboardApi.locate(dashboardId, c.document_id, c.quote, c.page);
+        page = r.page ?? page;
+        if (!rects.length) rects = r.rects;
+      } catch { /* fall through to a plain open */ }
+    }
+    if (!page) {
+      flash("Couldn't pinpoint that passage, so the paper is opened instead.");
+      setReader({ documentId: c.document_id, focus: null });
+      return;
+    }
+    setReader({ documentId: c.document_id, focus: { temp: { page, rects }, nonce: Date.now() } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboardId]);
+
+  const openPage = useCallback((documentId: number, page: number) => {
+    setReader({ documentId, focus: { temp: { page, rects: [] }, nonce: Date.now() } });
+  }, []);
+
+  const summarize = useCallback(async (nodeId: string) => {
+    const node = nodesRef.current.find((n) => n.id === nodeId);
+    if (!node) return;
+    const docId = (node.data as any).document_id as number;
+    if (!aiConfig().api_key) { notify("Add your AI provider key in Settings first.", "error"); openSettings(); return; }
+    try {
+      const e = await dashboardApi.estimate(dashboardId, "summarize", [docId]);
+      const total = e.tokens_in + e.tokens_out;
+      if (total > 30000 && !(await confirm({
+        title: "This is a large summary",
+        message: `Reading this paper will use about ${formatTokens(total)} tokens from your AI provider. Continue?`,
+        confirmLabel: "Summarize",
+      }))) return;
+    } catch { /* estimate is only a courtesy */ }
+    setSummarizing((s) => new Set(s).add(nodeId));
+    try {
+      const r = await dashboardApi.summarize(dashboardId, docId);
+      snapshot();
+      update(nodeId, { summary: r.summary, expanded: true });
+      refreshUsage();
+    } catch (e) {
+      notify(friendlyError(e), "error");
+    } finally {
+      setSummarizing((s) => { const n = new Set(s); n.delete(nodeId); return n; });
+    }
+  }, [dashboardId, confirm, notify, snapshot, update, refreshUsage]);
+
+  const pinAnswer = (question: string, answer: string, cites: Cite[]) => {
+    addNode("answer", { question, answer, cites, note: "" });
+    flash("Pinned to your canvas.");
+  };
+
+  const addTable = (columns: string[], rows: TableRow[]) => {
+    addNode("table", { title: "Comparison", columns, rows });
+    flash("Comparison table added to your canvas.");
+  };
+
   const createExcerpt = async (kind: "text" | "area", page: number, rects: Rect[], quote: string) => {
     if (!reader) return;
     try {
@@ -279,8 +356,11 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const onBeforeDelete = async ({ nodes: del, edges: delEdges }: { nodes: Node[]; edges: Edge[] }) => {
     const papers = del.filter((n) => n.type === "paper");
     if (papers.length) {
-      const ok = window.confirm(
-        `Remove ${papers.length === 1 ? "this paper" : `these ${papers.length} papers`} from the dashboard?\n\nThe PDF and everything you saved from ${papers.length === 1 ? "it" : "them"} will be deleted. This can’t be undone.`);
+      const ok = await confirm({
+        title: `Remove ${papers.length === 1 ? "this paper" : `these ${papers.length} papers`}?`,
+        message: `The PDF and everything you saved from ${papers.length === 1 ? "it" : "them"} will be deleted. This can’t be undone.`,
+        confirmLabel: "Remove", danger: true,
+      });
       if (!ok) return false;
     }
     snapshot();
@@ -344,6 +424,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
       let text = "";
       if (n.type === "paper") text = `${documents.find((x) => x.id === d.document_id)?.filename ?? ""} ${d.note ?? ""}`;
       else if (n.type === "excerpt") text = `${excerpts.find((x) => x.id === d.excerpt_id)?.quote ?? ""} ${d.note ?? ""}`;
+      else if (n.type === "answer") text = `${d.question ?? ""} ${d.answer ?? ""} ${d.note ?? ""}`;
+      else if (n.type === "table") text = `${d.title ?? ""} ${(d.columns ?? []).join(" ")} ${(d.rows ?? []).map((r: TableRow) => r.filename + " " + Object.values(r.cells).map((c) => c.text).join(" ")).join(" ")}`;
       else text = `${d.title ?? ""} ${d.text ?? ""}`;
       if (text.toLowerCase().includes(q)) hits.add(n.id);
     }
@@ -369,6 +451,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     if (n.type === "paper") return documents.find((x) => x.id === d.document_id)?.filename ?? "Paper";
     if (n.type === "excerpt") return `Excerpt, page ${excerpts.find((x) => x.id === d.excerpt_id)?.page ?? "?"}`;
     if (n.type === "claim") return `My research: ${(d.text ?? "").slice(0, 30)}`;
+    if (n.type === "answer") return `Answer: ${(d.question ?? "").slice(0, 30)}`;
+    if (n.type === "table") return d.title || "Comparison table";
     return d.title || (d.text ?? "").slice(0, 30) || (n.type === "frame" ? "Group" : "Note");
   };
 
@@ -376,8 +460,28 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     docs: new Map(documents.map((d) => [d.id, d])),
     excerpts: new Map(excerpts.map((e) => [e.id, e])),
     commentCounts, searchHits, openReader, snapshot, update,
-    comment: (id: string) => { setCommentTarget(id); setCommentsOpen(true); },
-  }), [documents, excerpts, commentCounts, searchHits, openReader, snapshot, update]);
+    comment: (id: string) => { setCommentTarget(id); setCommentsOpen(true); setAskOpen(false); },
+    openCite, openPage, summarize, summarizing,
+  }), [documents, excerpts, commentCounts, searchHits, openReader, snapshot, update, openCite, openPage, summarize, summarizing]);
+
+  // What is selected on the canvas, as the scope for "Ask" and the default for "Compare".
+  const selection = useMemo(() => {
+    const docIds = new Set<number>(), exIds: number[] = [];
+    for (const n of nodes) {
+      if (!n.selected) continue;
+      const d = n.data as any;
+      if (n.type === "paper") docIds.add(d.document_id);
+      if (n.type === "excerpt") {
+        const ex = excerpts.find((e) => e.id === d.excerpt_id);
+        if (ex) { exIds.push(ex.id); docIds.add(ex.document_id); }
+      }
+    }
+    return { docIds: Array.from(docIds), excerptIds: exIds };
+  }, [nodes, excerpts]);
+
+  const readyPapers = useMemo(
+    () => documents.filter((d) => d.status === "completed").map((d) => ({ id: d.id, name: d.filename.replace(/\.pdf$/i, "") })),
+    [documents]);
 
   // ---------------------------------------------------------------- export
   const exportMarkdown = async (mode: "download" | "copy") => {
@@ -431,7 +535,15 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             </div>
             <button className={tb} onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
             <button className={tb} onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Shift+Z)"><Redo2 size={14} /></button>
-            <button className={tb} onClick={() => setCommentsOpen((o) => !o)}><MessageSquare size={14} /> Comments{comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}</button>
+            {usage && usage.actions > 0 && (
+              <span className="flex items-center gap-1 rounded-lg px-2 text-xs text-[var(--muted)]"
+                title={`Tokens used by AI actions on this dashboard${usage.estimated ? " (partly estimated)" : ""}: ${usage.tokens_in.toLocaleString()} in, ${usage.tokens_out.toLocaleString()} out`}>
+                <Gauge size={13} /> {formatTokens(usage.tokens_in + usage.tokens_out)} tokens
+              </span>
+            )}
+            <button className={`${tb} ${askOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={() => { setAskOpen((o) => !o); setCommentsOpen(false); }}><Sparkles size={14} /> Ask</button>
+            <button className={tb} onClick={() => setCompareOpen(true)} disabled={readyPapers.length < 2} title={readyPapers.length < 2 ? "Add at least two papers first" : "Compare papers in a table"}><Table2 size={14} /> Compare</button>
+            <button className={tb} onClick={() => { setCommentsOpen((o) => !o); setAskOpen(false); }}><MessageSquare size={14} /> Comments{comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}</button>
             <button className={tb} onClick={() => exportMarkdown("download")} title="Download a Markdown summary"><Download size={14} /> Export</button>
             <button className={tb} onClick={() => exportMarkdown("copy")}>Copy</button>
           </div>
@@ -458,7 +570,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
               <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />
               <Controls showInteractive={false} />
               <MiniMap pannable zoomable nodeStrokeWidth={2}
-                nodeColor={(n) => ({ paper: "#2563eb", excerpt: "#d97706", claim: "#7c3aed", note: "#eab308", frame: "#94a3b8" } as Record<string, string>)[n.type ?? ""] ?? "#94a3b8"} />
+                nodeColor={(n) => ({ paper: "#2563eb", excerpt: "#d97706", claim: "#7c3aed", note: "#eab308", frame: "#94a3b8", answer: "#16a34a", table: "#0891b2" } as Record<string, string>)[n.type ?? ""] ?? "#94a3b8"} />
             </ReactFlow>
 
             {/* add toolbar */}
@@ -518,6 +630,14 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             </div>
           )}
 
+          {askOpen && (
+            <AskPanel
+              dashboardId={dashboardId} papers={readyPapers}
+              selectedDocIds={selection.docIds} selectedExcerptIds={selection.excerptIds}
+              onCite={openCite} onPin={pinAnswer} onUsageChanged={refreshUsage} onClose={() => setAskOpen(false)}
+            />
+          )}
+
           {commentsOpen && (
             <CommentsPanel
               comments={comments} label={nodeLabel} target={commentTarget} onTarget={setCommentTarget}
@@ -529,6 +649,13 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
           )}
         </div>
 
+        {compareOpen && (
+          <CompareDialog
+            dashboardId={dashboardId} papers={readyPapers} preselected={selection.docIds}
+            onClose={() => setCompareOpen(false)} onDone={addTable} onUsageChanged={refreshUsage}
+          />
+        )}
+        {dialogs}
         {importOpen && <ImportDialog dashboardId={dashboardId} onClose={() => setImportOpen(false)} onImport={importFromLibrary} />}
       </div>
     </CanvasContext.Provider>

@@ -188,6 +188,21 @@ class CanvasComment(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class AiUsage(Base):
+    """Token usage of AI actions on a dashboard (for the cost meter). Additive table."""
+    __tablename__ = "ai_usage"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    action = Column(String)                 # ask | summarize | compare
+    provider = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    tokens_in = Column(Integer, default=0)
+    tokens_out = Column(Integer, default=0)
+    estimated = Column(Integer, default=0)  # 1 = provider gave no usage numbers, we estimated
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 # SQLite Setup
 engine = create_engine(
     settings.DATABASE_URL,

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { DocInfo, ExcerptInfo } from "@/lib/dashboardApi";
+import type { Cite, DocInfo, ExcerptInfo } from "@/lib/dashboardApi";
 
 export type CanvasCtx = {
   docs: Map<number, DocInfo>;
@@ -11,6 +11,11 @@ export type CanvasCtx = {
   snapshot: () => void;
   update: (nodeId: string, patch: Record<string, unknown>) => void;
   comment: (nodeId: string) => void;
+  /** Open the reader at a cited passage (finds its exact position if needed). */
+  openCite: (c: Cite) => void;
+  openPage: (documentId: number, page: number) => void;
+  summarize: (nodeId: string) => void;
+  summarizing: Set<string>;
 };
 
 export const CanvasContext = createContext<CanvasCtx | null>(null);

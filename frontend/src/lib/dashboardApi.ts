@@ -17,6 +17,22 @@ export type DashboardFull = {
   nodes: any[]; edges: any[]; documents: DocInfo[]; excerpts: ExcerptInfo[]; comments: CommentInfo[];
 };
 
+export type Cite = {
+  n: number; document_id: number; filename?: string | null; page?: number | null; quote: string; rects: number[][];
+};
+export type Usage = { tokens_in: number; tokens_out: number; calls?: number; estimated?: boolean };
+export type AskResult = { answer: string; cites: Cite[]; usage: Usage; scope?: { id: number; filename: string }[] };
+export type ChatMsg = { id: number; role: "user" | "assistant"; content: string; cites: Cite[] };
+export type TableCell = { text: string; cites: Cite[] };
+export type TableRow = { document_id: number; filename: string; cells: Record<string, TableCell> };
+export type UsageTotals = { tokens_in: number; tokens_out: number; actions: number; estimated: boolean };
+
+/** Provider, key and model from Settings, in the shape the AI endpoints expect. */
+export function aiConfig() {
+  const c = getConfig();
+  return { provider: c.provider || "groq", api_key: c.apiKey || "", model_name: c.modelName || undefined };
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, init);
   if (!res.ok) {
@@ -70,4 +86,22 @@ export const dashboardApi = {
     const res = await req<{ doc_ids: number[] }>(`/chat/upload?session_id=${sessionId}`, { method: "POST", body: form });
     return res.doc_ids;
   },
+
+  // ---- Stage 2: grounded AI
+  ask: (id: string, text: string, document_ids?: number[], excerpt_ids?: number[]) =>
+    req<AskResult>(`/dashboards/${id}/ask`, json("POST", { ...aiConfig(), text, document_ids, excerpt_ids })),
+  chat: (id: string) => req<ChatMsg[]>(`/dashboards/${id}/chat`),
+  clearChat: (id: string) => req<unknown>(`/dashboards/${id}/chat`, { method: "DELETE" }),
+  summarize: (id: string, document_id: number) =>
+    req<{ summary: string; pages: number[]; usage: Usage }>(`/dashboards/${id}/summarize`, json("POST", { ...aiConfig(), document_id })),
+  compareRow: (id: string, document_id: number, columns: string[]) =>
+    req<TableRow & { usage: Usage }>(`/dashboards/${id}/compare-row`, json("POST", { ...aiConfig(), document_id, columns })),
+  locate: (id: string, document_id: number, quote: string, page?: number | null) =>
+    req<{ page: number | null; rects: number[][] }>(`/dashboards/${id}/locate`, json("POST", { document_id, quote, page })),
+  estimate: (id: string, action: "ask" | "summarize" | "compare", document_ids: number[], columns = 5) => {
+    const c = aiConfig();
+    return req<{ tokens_in: number; tokens_out: number }>(`/dashboards/${id}/estimate`,
+      json("POST", { action, document_ids, columns, provider: c.provider, model_name: c.model_name }));
+  },
+  usage: (id: string) => req<UsageTotals>(`/dashboards/${id}/usage`),
 };

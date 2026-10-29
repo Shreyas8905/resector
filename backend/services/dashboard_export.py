@@ -48,6 +48,34 @@ def build_markdown(d: dict) -> str:
             for e in [e for e in excerpts.values() if e["document_id"] == did]:
                 out += ["", _q(e.get("quote") or "(area selection)"), f"— p.{e['page']}"]
 
+    answers = [n for n in nodes.values() if n["type"] == "answer"]
+    if answers:
+        out += ["", "## Questions and answers"]
+        for a in answers:
+            data = a.get("data", {})
+            out += ["", f"**{(data.get('question') or 'Question').strip()}**", "", (data.get("answer") or "").strip()]
+            srcs = [c for c in data.get("cites", []) if isinstance(c, dict)]
+            if srcs:
+                out.append("")
+                out += [f"- [{c.get('n')}] {c.get('filename') or 'paper'}"
+                        + (f", p.{c['page']}" if c.get("page") else "") for c in srcs]
+
+    for t in [n for n in nodes.values() if n["type"] == "table"]:
+        data = t.get("data", {})
+        cols = data.get("columns") or []
+        if not cols:
+            continue
+        out += ["", f"## {data.get('title') or 'Comparison'}", "",
+                "| Paper | " + " | ".join(cols) + " |", "|" + "---|" * (len(cols) + 1)]
+        for r in data.get("rows") or []:
+            cells = []
+            for c in cols:
+                cell = (r.get("cells") or {}).get(c) or {}
+                pages = ", ".join(f"p.{x['page']}" for x in cell.get("cites", []) if isinstance(x, dict) and x.get("page"))
+                text = (cell.get("text") or "—").replace("|", "\\|").replace("\n", " ")
+                cells.append(text + (f" ({pages})" if pages else ""))
+            out.append(f"| {(r.get('filename') or '').replace('.pdf', '')} | " + " | ".join(cells) + " |")
+
     notes = [n for n in nodes.values() if n["type"] == "note"]
     if notes:
         out += ["", "## Notes"]

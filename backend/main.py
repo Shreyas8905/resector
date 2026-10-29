@@ -633,6 +633,8 @@ async def get_graph_session(session_id: str, db=Depends(get_db)):
 
 from .dashboards import router as dashboards_router
 app.include_router(dashboards_router)
+from .dashboards_ai import router as dashboards_ai_router
+app.include_router(dashboards_ai_router)
 
 
 # Desktop app: the backend also serves the exported frontend (same origin, no CORS, no fixed API URL).

@@ -23,7 +23,12 @@ function loadPdfjs() {
   return pdfjsPromise;
 }
 
-export type ReaderFocus = { excerptId: number; nonce: number } | null;
+export type ReaderFocus = {
+  excerptId?: number;
+  /** A passage cited by the AI: highlighted temporarily, not saved. rects may be empty (page-only jump). */
+  temp?: { page: number; rects: number[][] };
+  nonce: number;
+} | null;
 
 type Props = {
   fileUrl: string;
@@ -82,15 +87,21 @@ export default function PdfReader({ fileUrl, filename, excerpts, focus, onCreate
 
   const scaleFor = useCallback((i: number) => (sizes[i] ? (width / sizes[i].w) * zoom : 1), [sizes, width, zoom]);
 
-  // Jump to a focused excerpt.
+  // Jump to a focused excerpt or a cited passage.
   useEffect(() => {
     if (!focus || !sizes.length) return;
-    const ex = excerpts.find((e) => e.id === focus.excerptId);
     const root = scrollRef.current;
-    if (!ex || !root) return;
-    const pageEl = root.querySelector<HTMLElement>(`[data-page="${ex.page}"]`);
+    if (!root) return;
+    let page: number | undefined, rects: number[][] = [];
+    if (focus.temp) { page = focus.temp.page; rects = focus.temp.rects; }
+    else {
+      const ex = excerpts.find((e) => e.id === focus.excerptId);
+      if (ex) { page = ex.page; rects = ex.rects; }
+    }
+    if (!page) return;
+    const pageEl = root.querySelector<HTMLElement>(`[data-page="${page}"]`);
     if (!pageEl) return;
-    const y0 = Math.min(...ex.rects.map((r) => r[1]));
+    const y0 = rects.length ? Math.min(...rects.map((r) => r[1])) : 0;
     root.scrollTo({ top: Math.max(0, pageEl.offsetTop + y0 * pageEl.offsetHeight - 96), behavior: "smooth" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.nonce, sizes.length]);
@@ -161,6 +172,7 @@ export default function PdfReader({ fileUrl, filename, excerpts, focus, onCreate
           <PageView
             key={i} pdf={pdf} pageNo={i + 1} size={sz} scale={scaleFor(i)} mode={mode}
             excerpts={excerpts.filter((e) => e.page === i + 1)} focusId={focus?.excerptId ?? null}
+            temp={focus?.temp && focus.temp.page === i + 1 ? focus.temp.rects : null}
             onArea={(rect) => commit("area", i + 1, [rect], "")}
           />
         ))}
@@ -180,9 +192,9 @@ export default function PdfReader({ fileUrl, filename, excerpts, focus, onCreate
   );
 }
 
-function PageView({ pdf, pageNo, size, scale, mode, excerpts, focusId, onArea }: {
+function PageView({ pdf, pageNo, size, scale, mode, excerpts, focusId, temp, onArea }: {
   pdf: Pdf; pageNo: number; size: PageSize; scale: number; mode: "text" | "area";
-  excerpts: ExcerptInfo[]; focusId: number | null; onArea: (r: Rect) => void;
+  excerpts: ExcerptInfo[]; focusId: number | null; temp: number[][] | null; onArea: (r: Rect) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -249,6 +261,13 @@ function PageView({ pdf, pageNo, size, scale, mode, excerpts, focusId, onArea }:
           style={{ left: `${r[0] * 100}%`, top: `${r[1] * 100}%`, width: `${(r[2] - r[0]) * 100}%`, height: `${(r[3] - r[1]) * 100}%`, mixBlendMode: "multiply" }}
         />
       )))}
+      {temp && temp.map((r, k) => (
+        <div key={`t${k}`} className="pointer-events-none absolute rounded-sm bg-sky-400/35 ring-2 ring-sky-500"
+          style={{ left: `${r[0] * 100}%`, top: `${r[1] * 100}%`, width: `${(r[2] - r[0]) * 100}%`, height: `${(r[3] - r[1]) * 100}%`, mixBlendMode: "multiply" }} />
+      ))}
+      {temp && temp.length === 0 && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-sky-500/70" />
+      )}
       {mode === "area" && (
         <div
           className="absolute inset-0 z-10 cursor-crosshair"

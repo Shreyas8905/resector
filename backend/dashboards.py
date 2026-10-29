@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from .config import settings, UPLOAD_DIR
 from .database import (
     SessionLocal, UserSession, Document, DocStatus, Dashboard, CanvasNode, CanvasEdge,
-    Excerpt, CanvasComment, get_vector_collection,
+    Excerpt, CanvasComment, AiUsage, get_vector_collection,
 )
 from .services.dashboard_utils import (
     validate_canvas, normalize_rects, union_rect, clean_text, context_around,
@@ -134,7 +134,7 @@ def delete_dashboard(dash_id: str, db=Depends(get_db)):
     except Exception as e:
         logger.warning("chroma cleanup failed for %s: %s", sid, e)
     shutil.rmtree(EXCERPTS_ROOT / str(d.id), ignore_errors=True)
-    for model in (CanvasNode, CanvasEdge, Excerpt, CanvasComment):
+    for model in (CanvasNode, CanvasEdge, Excerpt, CanvasComment, AiUsage):
         db.query(model).filter(model.dashboard_id == d.id).delete()
     db.delete(d)
     s = db.query(UserSession).filter(UserSession.session_id == sid).first()
