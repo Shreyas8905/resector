@@ -4,11 +4,12 @@
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -113,9 +114,97 @@ fn kill_backend(app: &AppHandle) {
     }
 }
 
-/// Asks GitHub Releases (see plugins.updater in tauri.conf.json) whether a newer signed version exists.
-/// If so, asks the user; on "Update now" it downloads, stops the backend (Windows cannot overwrite a
-/// running exe), installs and restarts. Network problems are ignored: the app just keeps working.
+struct Pending {
+    update: Mutex<Option<tauri_plugin_updater::Update>>,
+    ui_seen: AtomicBool,
+}
+
+/// Tells the page what is happening. The page (served from the local backend) listens for the
+/// "resector-update" DOM event; nothing else is needed on its side.
+fn push_status(app: &AppHandle, state: &str, extra: serde_json::Value) {
+    let mut payload = extra;
+    payload["state"] = serde_json::json!(state);
+    if let Some(w) = app.get_webview_window("main") {
+        let js = format!(
+            "window.__resectorUpdate={0};window.dispatchEvent(new CustomEvent('resector-update',{{detail:{0}}}))",
+            payload
+        );
+        let _ = w.eval(&js);
+    }
+}
+
+#[tauri::command]
+fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// The page calls this when it mounts, so an update found before the page was ready is not missed.
+#[tauri::command]
+fn update_status(app: AppHandle, pending: State<Pending>) -> serde_json::Value {
+    pending.ui_seen.store(true, Ordering::SeqCst);
+    match pending.update.lock().unwrap().as_ref() {
+        Some(u) => serde_json::json!({
+            "state": "available", "version": u.version,
+            "notes": u.body.clone().unwrap_or_default().chars().take(600).collect::<String>(),
+            "current": app.package_info().version.to_string(),
+        }),
+        None => serde_json::json!({ "state": "none" }),
+    }
+}
+
+/// Downloads with progress, stops the backend (Windows cannot overwrite a running exe), installs and
+/// relaunches. Every step is logged to shell.log and failures are shown in the page.
+async fn run_install(app: AppHandle, update: tauri_plugin_updater::Update) -> Result<(), String> {
+    let version = update.version.clone();
+    shell_log(&app, "update: downloading");
+    push_status(&app, "downloading", serde_json::json!({ "version": version, "percent": 0 }));
+    let done = AtomicU64::new(0);
+    let last = AtomicU64::new(101);
+    let app2 = app.clone();
+    let ver2 = version.clone();
+    let bytes = update
+        .download(
+            move |chunk, total| {
+                let got = done.fetch_add(chunk as u64, Ordering::SeqCst) + chunk as u64;
+                let pct = total.filter(|t| *t > 0).map(|t| (got * 100 / t).min(100)).unwrap_or(0);
+                if last.swap(pct, Ordering::SeqCst) != pct {
+                    push_status(&app2, "downloading", serde_json::json!({ "version": ver2, "percent": pct }));
+                }
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| format!("Download failed: {e}"))?;
+    shell_log(&app, &format!("update: downloaded {} bytes, installing", bytes.len()));
+    push_status(&app, "installing", serde_json::json!({ "version": version }));
+    kill_backend(&app);
+    thread::sleep(Duration::from_millis(1500)); // let Windows release the backend's files
+    if let Err(e) = update.install(bytes) {
+        shell_log(&app, &format!("update: install failed: {e}"));
+        return Err(format!("Install failed: {e}"));
+    }
+    shell_log(&app, "update: installed, restarting");
+    push_status(&app, "restarting", serde_json::json!({ "version": version }));
+    thread::sleep(Duration::from_millis(600));
+    app.restart() // on Windows the installer normally exits the app and relaunches it itself
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle, pending: State<'_, Pending>) -> Result<(), String> {
+    let Some(update) = pending.update.lock().unwrap().take() else {
+        return Err("There is no update to install.".into());
+    };
+    shell_log(&app, "update: user chose Update now");
+    if let Err(e) = run_install(app.clone(), update).await {
+        push_status(&app, "error", serde_json::json!({ "message": e }));
+        return Err(e);
+    }
+    Ok(())
+}
+
+/// Checks GitHub Releases (plugins.updater in tauri.conf.json). A newer version is shown inside the
+/// app (sidebar). If the page never reports in (for example its connection to the shell is blocked),
+/// we fall back to a native prompt so updating still works. Network problems are ignored.
 async fn check_for_update(app: AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     shell_log(&app, &format!("update check: running version {}", app.package_info().version));
     let Some(update) = app.updater()?.check().await? else {
@@ -124,28 +213,42 @@ async fn check_for_update(app: AppHandle) -> Result<(), Box<dyn std::error::Erro
     };
     shell_log(&app, &format!("update check: found version {}", update.version));
     let notes: String = update.body.clone().unwrap_or_default().chars().take(600).collect();
-    let msg = format!(
-        "ReSector {} is available (you have {}).\n\n{}\n\nYour data and settings are kept.",
-        update.version,
-        app.package_info().version,
-        notes
+    let version = update.version.clone();
+    *app.state::<Pending>().update.lock().unwrap() = Some(update);
+    push_status(
+        &app,
+        "available",
+        serde_json::json!({ "version": version, "notes": notes, "current": app.package_info().version.to_string() }),
     );
+
+    // Give the page time to take over; otherwise use the native prompt.
+    for _ in 0..20 {
+        tokio_sleep(500).await;
+        if app.state::<Pending>().ui_seen.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+    }
+    shell_log(&app, "update: page did not respond, using native prompt");
+    let msg = format!("ReSector {version} is available (you have {}).\n\n{notes}\n\nYour data and settings are kept.", app.package_info().version);
     let accepted = app
         .dialog()
         .message(msg)
         .title("Update available")
         .buttons(MessageDialogButtons::OkCancelCustom("Update now".into(), "Later".into()))
         .blocking_show();
-    if !accepted {
-        shell_log(&app, "update: user chose Later");
-        return Ok(());
+    if accepted {
+        let update = app.state::<Pending>().update.lock().unwrap().take();
+        if let Some(u) = update {
+            if let Err(e) = run_install(app.clone(), u).await {
+                shell_log(&app, &format!("update failed: {e}"));
+            }
+        }
     }
-    shell_log(&app, "update: downloading");
-    let bytes = update.download(|_chunk, _total| {}, || {}).await?;
-    shell_log(&app, "update: installing");
-    kill_backend(&app);
-    update.install(bytes)?;
-    app.restart() // on Windows install() already exited the process and the installer relaunches the app
+    Ok(())
+}
+
+async fn tokio_sleep(ms: u64) {
+    let _ = tauri::async_runtime::spawn_blocking(move || thread::sleep(Duration::from_millis(ms))).await;
 }
 
 fn goto(window: &WebviewWindow, url: &str) {
@@ -188,8 +291,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![app_version, update_status, install_update])
         .setup(|app| {
             app.manage(Backend(Mutex::new(None)));
+            app.manage(Pending { update: Mutex::new(None), ui_seen: AtomicBool::new(false) });
             let handle = app.handle().clone();
             thread::spawn(move || launch(handle));
             Ok(())

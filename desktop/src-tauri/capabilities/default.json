@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window. The UI is served by the local backend and needs no native APIs yet.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Main window. The UI is served by the local backend (127.0.0.1) and may call the app's own update commands.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*/*",
+      "http://localhost:*/*"
+    ]
+  },
+  "permissions": [
+    "core:default"
+  ]
 }
