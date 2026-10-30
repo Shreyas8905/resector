@@ -33,6 +33,25 @@ export function aiConfig() {
   return { provider: c.provider || "groq", api_key: c.apiKey || "", model_name: c.modelName || undefined };
 }
 
+export type Suggestion = {
+  id: number; a_kind: "paper" | "claim"; a_ref: string; b_kind: "paper" | "claim"; b_ref: string;
+  relation: "supports" | "contradicts" | "extends" | "method"; summary: string; confidence: number;
+  status: "pending" | "accepted"; evidence: Cite[];
+};
+export type AgentRunInfo = {
+  id: number; kind: "wire" | "gaps"; status: "running" | "done" | "failed" | "cancelled";
+  total: number; done: number; found: number; tokens_in: number; tokens_out: number; message: string;
+  created_at: string; finished_at: string | null;
+};
+export type GapFinding = {
+  node_id: string; claim: string; verdict: "supported" | "partly" | "contradicted" | "not_covered";
+  missing: string; search: string; supporting: Cite[]; contradicting: Cite[];
+};
+export type AgentState = {
+  suggestions: Suggestion[]; runs: AgentRunInfo[];
+  gaps: (AgentRunInfo & { result: GapFinding[] }) | null; running: AgentRunInfo | null;
+};
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, init);
   if (!res.ok) {
@@ -104,4 +123,16 @@ export const dashboardApi = {
       json("POST", { action, document_ids, columns, provider: c.provider, model_name: c.model_name }));
   },
   usage: (id: string) => req<UsageTotals>(`/dashboards/${id}/usage`),
+
+  // ---- Stage 3: agent wiring
+  agent: (id: string) => req<AgentState>(`/dashboards/${id}/agent`),
+  wireRun: (id: string, opts: { include_claims: boolean; max_pairs: number; rerun?: boolean; document_ids?: number[] }) =>
+    req<{ run_id: number }>(`/dashboards/${id}/wire/run`, json("POST", { ...aiConfig(), ...opts })),
+  gapsRun: (id: string) => req<{ run_id: number }>(`/dashboards/${id}/gaps/run`, json("POST", aiConfig())),
+  cancelRun: (id: string, runId: number) => req<unknown>(`/dashboards/${id}/runs/${runId}/cancel`, { method: "POST" }),
+  setSuggestion: (sid: number, status: "pending" | "accepted" | "dismissed") =>
+    req<Suggestion>(`/wire/suggestions/${sid}`, json("PATCH", { status })),
+  wireEstimate: (id: string, include_claims: boolean, max_pairs: number) =>
+    req<{ calls: number; tokens_in: number; tokens_out: number; papers: number; claims: number }>(
+      `/dashboards/${id}/wire/estimate`, json("POST", { include_claims, max_pairs })),
 };

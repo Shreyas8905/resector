@@ -8,17 +8,22 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft, Check, Download, FilePlus2, Frame, Gauge, Library, Loader2, MessageSquare, Redo2, Search,
-  Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
+  LayoutGrid, Link2, Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import {
   aiConfig, dashboardApi, type Cite, type CommentInfo, type DashboardFull, type DocInfo, type ExcerptInfo,
-  type TableRow, type UsageTotals,
+  type AgentState, type Suggestion, type TableRow, type UsageTotals,
 } from "@/lib/dashboardApi";
+import { edgeFromSuggestion, ghostLinks, nodeFor, suggestionForEdge, RELATION_LABEL } from "@/lib/wiring";
 import { formatTokens } from "@/lib/citations";
 import { friendlyError, openSettings } from "@/lib/errors";
 import { useDialogs } from "@/components/ui/Dialogs";
+import { ResizeHandle, panelStyle, usePanelWidth } from "@/components/ui/Resizable";
 import AskPanel from "./AskPanel";
 import CompareDialog from "./CompareDialog";
+import ConnectionsPanel from "./ConnectionsPanel";
+import MatrixView from "./MatrixView";
+import SuggestionCard from "./SuggestionCard";
 import type { Rect } from "@/lib/rects";
 import { CanvasContext, EDGE_KINDS, type CanvasCtx } from "./context";
 import { nodeTypes } from "./nodes";
@@ -97,8 +102,14 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const [askOpen, setAskOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [usage, setUsage] = useState<UsageTotals | null>(null);
+  const [agent, setAgent] = useState<AgentState | null>(null);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [view, setView] = useState<"canvas" | "matrix">("canvas");
+  const [ghostId, setGhostId] = useState<number | null>(null);
   const [summarizing, setSummarizing] = useState<Set<string>>(new Set());
   const { confirm, notify, dialogs } = useDialogs();
+  const readerPanel = usePanelWidth("dash_reader", 560, 340, 1100);
+  const commentsPanel = usePanelWidth("dash_comments", 320, 240, 560);
   const fileInput = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -131,6 +142,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
       loaded.current = true;
       window.setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1 }), 50);
       dashboardApi.usage(dashboardId).then((u) => !off && setUsage(u)).catch(() => {});
+      dashboardApi.agent(dashboardId).then((a) => !off && setAgent(a)).catch(() => {});
     }).catch((e) => !off && setLoadError(e.message || "Could not open this dashboard."));
     return () => { off = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +284,53 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     setReader({ documentId, focus: excerptId ? { excerptId, nonce: Date.now() } : null });
   }, []);
 
+  const refreshAgent = useCallback(() => {
+    dashboardApi.agent(dashboardId).then(setAgent).catch(() => {});
+  }, [dashboardId]);
+
+  // While an agent run is going, keep progress and new suggestions fresh.
+  const runningId = agent?.running?.id ?? null;
+  useEffect(() => {
+    if (runningId == null) return;
+    const t = window.setInterval(() => { refreshAgent(); refreshUsage(); }, 2000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runningId, refreshAgent]);
+
+  // Make sure the server has the latest canvas (claim text!) before an agent reads it.
+  const flushSave = useCallback(async () => {
+    const s = serialize(nodesRef.current, edgesRef.current);
+    await dashboardApi.saveCanvas(dashboardId, s.nodes, s.edges);
+    lastSaved.current = JSON.stringify(s);
+  }, [dashboardId]);
+
+  const acceptSuggestion = useCallback(async (sg: Suggestion) => {
+    const e = edgeFromSuggestion(sg, nodesRef.current);
+    if (!e) { flash("Both cards need to be on the canvas to add this link."); return; }
+    snapshot();
+    setEdges((es) => [...es, { id: uid("e"), source: e.source, target: e.target, data: e.data }]);
+    setGhostId(null);
+    setAgent((a) => a && { ...a, suggestions: a.suggestions.map((x) => (x.id === sg.id ? { ...x, status: "accepted" } : x)) });
+    dashboardApi.setSuggestion(sg.id, "accepted").catch(() => flash("Could not save that decision."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot, setEdges]);
+
+  const dismissSuggestion = useCallback((sg: Suggestion) => {
+    setGhostId(null);
+    setAgent((a) => a && { ...a, suggestions: a.suggestions.filter((x) => x.id !== sg.id) });
+    dashboardApi.setSuggestion(sg.id, "dismissed").catch(() => flash("Could not save that decision."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const focusSuggestion = useCallback((sg: Suggestion) => {
+    const a = nodeFor(nodesRef.current, sg.a_kind, sg.a_ref), b = nodeFor(nodesRef.current, sg.b_kind, sg.b_ref);
+    if (!a || !b) { flash("Both cards need to be on the canvas."); return; }
+    setView("canvas");
+    setGhostId(sg.id);
+    window.setTimeout(() => rf.fitView({ nodes: [{ id: a.id }, { id: b.id }], padding: 0.5, duration: 400, maxZoom: 1 }), 30);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const refreshUsage = useCallback(() => {
     dashboardApi.usage(dashboardId).then(setUsage).catch(() => {});
   }, [dashboardId]);
@@ -397,18 +456,35 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     setEdges((es) => addEdge({ ...c, id: uid("e"), data: { kind: "related", label: "" } }, es));
   }, [setEdges, snapshot]);
 
-  const displayEdges = useMemo(() => edges.map((e) => {
-    const k = kindInfo((e.data as any)?.kind ?? "related");
-    const label = (e.data as any)?.label || ((e.data as any)?.kind && (e.data as any).kind !== "related" && (e.data as any).kind !== "custom" ? k.label : undefined);
-    return {
-      ...e, label, animated: false,
-      style: { stroke: k.color, strokeWidth: e.selected ? 3 : 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: k.color },
-      labelStyle: { fontSize: 11, fill: "var(--foreground)" },
-      labelBgStyle: { fill: "var(--surface)", fillOpacity: 0.95 },
-      labelBgPadding: [4, 2] as [number, number], labelBgBorderRadius: 4,
-    } as Edge;
-  }), [edges]);
+  const ghosts = useMemo(() => ghostLinks(agent?.suggestions ?? [], nodes, edges), [agent, nodes, edges]);
+  const displayEdges = useMemo(() => {
+    const real = edges.map((e) => {
+      const k = kindInfo((e.data as any)?.kind ?? "related");
+      const label = (e.data as any)?.label || ((e.data as any)?.kind && (e.data as any).kind !== "related" && (e.data as any).kind !== "custom" ? k.label : undefined);
+      return {
+        ...e, label, animated: false,
+        style: { stroke: k.color, strokeWidth: e.selected ? 3 : 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: k.color },
+        labelStyle: { fontSize: 11, fill: "var(--foreground)" },
+        labelBgStyle: { fill: "var(--surface)", fillOpacity: 0.95 },
+        labelBgPadding: [4, 2] as [number, number], labelBgBorderRadius: 4,
+      } as Edge;
+    });
+    const ghost = ghosts.map((g) => {
+      const k = kindInfo(g.suggestion.relation);
+      return {
+        id: g.id, source: g.source, target: g.target, animated: true, selectable: true, focusable: true,
+        label: `? ${RELATION_LABEL[g.suggestion.relation]}`,
+        style: { stroke: k.color, strokeWidth: ghostId === g.suggestion.id ? 3.5 : 2, strokeDasharray: "6 5", opacity: ghostId === g.suggestion.id ? 1 : 0.75 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: k.color },
+        labelStyle: { fontSize: 11, fill: "var(--foreground)" },
+        labelBgStyle: { fill: "var(--surface)", fillOpacity: 0.95 },
+        labelBgPadding: [4, 2] as [number, number], labelBgBorderRadius: 4,
+        data: { ghost: true },
+      } as Edge;
+    });
+    return [...real, ...ghost];
+  }, [edges, ghosts, ghostId]);
 
   const selectedEdge = edges.filter((e) => e.selected).length === 1 ? edges.find((e) => e.selected)! : null;
   const patchEdge = (id: string, patch: Record<string, unknown>) =>
@@ -460,7 +536,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     docs: new Map(documents.map((d) => [d.id, d])),
     excerpts: new Map(excerpts.map((e) => [e.id, e])),
     commentCounts, searchHits, openReader, snapshot, update,
-    comment: (id: string) => { setCommentTarget(id); setCommentsOpen(true); setAskOpen(false); },
+    comment: (id: string) => { setCommentTarget(id); setCommentsOpen(true); setAskOpen(false); setConnectionsOpen(false); },
     openCite, openPage, summarize, summarizing,
   }), [documents, excerpts, commentCounts, searchHits, openReader, snapshot, update, openCite, openPage, summarize, summarizing]);
 
@@ -478,6 +554,16 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     }
     return { docIds: Array.from(docIds), excerptIds: exIds };
   }, [nodes, excerpts]);
+
+  const claimCards = useMemo(
+    () => nodes.filter((n) => n.type === "claim").map((n) => ({ id: n.id, text: String((n.data as any).text ?? "") })),
+    [nodes]);
+  const nameOf = useCallback((kind: string, ref: string) => {
+    if (kind === "claim") return `“${(claimCards.find((c) => c.id === ref)?.text || "My research").slice(0, 40)}”`;
+    return (documents.find((d) => String(d.id) === ref)?.filename ?? "Paper").replace(/\.pdf$/i, "");
+  }, [claimCards, documents]);
+  const ghostSuggestion = ghostId != null ? ghosts.find((g) => g.suggestion.id === ghostId)?.suggestion ?? null : null;
+  const edgeEvidence = selectedEdge ? suggestionForEdge(selectedEdge, agent?.suggestions ?? [], nodes) : undefined;
 
   const readyPapers = useMemo(
     () => documents.filter((d) => d.status === "completed").map((d) => ({ id: d.id, name: d.filename.replace(/\.pdf$/i, "") })),
@@ -541,9 +627,17 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
                 <Gauge size={13} /> {formatTokens(usage.tokens_in + usage.tokens_out)} tokens
               </span>
             )}
-            <button className={`${tb} ${askOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={() => { setAskOpen((o) => !o); setCommentsOpen(false); }}><Sparkles size={14} /> Ask</button>
+            <div className="flex rounded-lg border border-[var(--border)] p-0.5" role="group" aria-label="View">
+              <button className={`${tb} !px-2 !py-1 ${view === "canvas" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("canvas")} aria-pressed={view === "canvas"}>Canvas</button>
+              <button className={`${tb} !px-2 !py-1 ${view === "matrix" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("matrix")} aria-pressed={view === "matrix"}><LayoutGrid size={13} /> Matrix</button>
+            </div>
+            <button className={`${tb} ${connectionsOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`}
+              onClick={() => { setConnectionsOpen((o) => !o); setAskOpen(false); setCommentsOpen(false); }}>
+              <Link2 size={14} /> Connections{(agent?.suggestions ?? []).filter((x) => x.status === "pending").length > 0 && ` (${(agent?.suggestions ?? []).filter((x) => x.status === "pending").length})`}
+            </button>
+            <button className={`${tb} ${askOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={() => { setAskOpen((o) => !o); setCommentsOpen(false); setConnectionsOpen(false); }}><Sparkles size={14} /> Ask</button>
             <button className={tb} onClick={() => setCompareOpen(true)} disabled={readyPapers.length < 2} title={readyPapers.length < 2 ? "Add at least two papers first" : "Compare papers in a table"}><Table2 size={14} /> Compare</button>
-            <button className={tb} onClick={() => { setCommentsOpen((o) => !o); setAskOpen(false); }}><MessageSquare size={14} /> Comments{comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}</button>
+            <button className={tb} onClick={() => { setCommentsOpen((o) => !o); setAskOpen(false); setConnectionsOpen(false); }}><MessageSquare size={14} /> Comments{comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}</button>
             <button className={tb} onClick={() => exportMarkdown("download")} title="Download a Markdown summary"><Download size={14} /> Export</button>
             <button className={tb} onClick={() => exportMarkdown("copy")}>Copy</button>
           </div>
@@ -551,7 +645,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
         <div className="flex min-h-0 flex-1">
           <div
-            ref={wrapRef} className="relative min-w-0 flex-1"
+            ref={wrapRef} className={`relative min-w-0 flex-1 ${view === "matrix" ? "hidden" : ""}`}
             onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
             onDrop={(e) => {
               if (!e.dataTransfer.files.length) return;
@@ -564,6 +658,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
               onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
               onBeforeDelete={onBeforeDelete as any} onNodesDelete={onNodesDelete}
               onNodeDragStart={snapshot} deleteKeyCode={["Backspace", "Delete"]}
+              onEdgeClick={(_, edge) => { const g = ghosts.find((x) => x.id === edge.id); setGhostId(g ? g.suggestion.id : null); }}
+              onPaneClick={() => setGhostId(null)}
               minZoom={0.1} maxZoom={2} colorMode={dark ? "dark" : "light"} fitView
               zoomOnDoubleClick={false}
             >
@@ -587,8 +683,21 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
                 onChange={(e) => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
             </div>
 
+            {ghostSuggestion && (
+              <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
+                <SuggestionCard s={ghostSuggestion} aName={nameOf(ghostSuggestion.a_kind, ghostSuggestion.a_ref)} bName={nameOf(ghostSuggestion.b_kind, ghostSuggestion.b_ref)}
+                  onAccept={() => acceptSuggestion(ghostSuggestion)} onDismiss={() => dismissSuggestion(ghostSuggestion)} onCite={openCite} onClose={() => setGhostId(null)} />
+              </div>
+            )}
+
+            {selectedEdge && edgeEvidence && !ghostSuggestion && (
+              <div className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+                <SuggestionCard s={edgeEvidence} aName={nameOf(edgeEvidence.a_kind, edgeEvidence.a_ref)} bName={nameOf(edgeEvidence.b_kind, edgeEvidence.b_ref)} onCite={openCite} />
+              </div>
+            )}
+
             {/* link inspector */}
-            {selectedEdge && (
+            {selectedEdge && !ghostSuggestion && (
               <div className="anim-pop absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-[var(--shadow-pop)]">
                 <span className="px-1 text-xs text-[var(--muted)]">This link:</span>
                 {EDGE_KINDS.map((k) => (
@@ -619,8 +728,16 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             )}
           </div>
 
+          {view === "matrix" && (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <MatrixView docs={documents} claims={claimCards.filter((c) => c.text.trim())} suggestions={agent?.suggestions ?? []}
+                onAccept={acceptSuggestion} onDismiss={dismissSuggestion} onCite={openCite} />
+            </div>
+          )}
+
           {reader && readerDoc && (
-            <div className="w-[46%] min-w-[400px] max-w-[760px] border-l border-[var(--border)]">
+            <div className="relative w-[46%] min-w-[400px] max-w-[760px] shrink-0 border-l border-[var(--border)] md:w-[var(--panel-w)] md:min-w-0 md:max-w-none" style={panelStyle(readerPanel.width)}>
+              <ResizeHandle panel={readerPanel} edge="left" label="Resize the paper reader" />
               <PdfReader
                 key={reader.documentId}
                 fileUrl={dashboardApi.fileUrl(reader.documentId)} filename={readerDoc.filename}
@@ -628,6 +745,14 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
                 focus={reader.focus} onCreate={createExcerpt} onClose={() => setReader(null)}
               />
             </div>
+          )}
+
+          {connectionsOpen && (
+            <ConnectionsPanel
+              dashboardId={dashboardId} agent={agent} paperCount={readyPapers.length} claimCount={claimCards.filter((c) => c.text.trim().length >= 12).length}
+              nameOf={nameOf} beforeRun={flushSave} onStarted={() => { refreshAgent(); window.setTimeout(refreshAgent, 800); }}
+              onFocus={focusSuggestion} onAccept={acceptSuggestion} onDismiss={dismissSuggestion} onCite={openCite} onClose={() => setConnectionsOpen(false)}
+            />
           )}
 
           {askOpen && (
@@ -641,6 +766,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
           {commentsOpen && (
             <CommentsPanel
               comments={comments} label={nodeLabel} target={commentTarget} onTarget={setCommentTarget}
+              panel={commentsPanel}
               onAdd={addComment} onClose={() => setCommentsOpen(false)}
               onResolve={async (c) => { const u = await dashboardApi.resolveComment(c.id, !c.resolved); setComments((x) => x.map((y) => (y.id === c.id ? u : y))); }}
               onDelete={async (c) => { await dashboardApi.deleteComment(c.id); setComments((x) => x.filter((y) => y.id !== c.id)); }}
@@ -662,14 +788,16 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   );
 }
 
-function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onResolve, onDelete, onJump }: {
+function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onResolve, onDelete, onJump, panel }: {
+  panel: ReturnType<typeof usePanelWidth>;
   comments: CommentInfo[]; label: (id: string | null) => string; target: string | null; onTarget: (id: string | null) => void;
   onAdd: (t: string) => Promise<void>; onClose: () => void; onResolve: (c: CommentInfo) => void; onDelete: (c: CommentInfo) => void; onJump: (id: string | null) => void;
 }) {
   const [text, setText] = useState("");
   const sorted = [...comments].sort((a, b) => Number(a.resolved) - Number(b.resolved) || b.id - a.id);
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)]">
+    <aside style={panelStyle(panel.width)} className="relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
+      <ResizeHandle panel={panel} edge="left" label="Resize the comments panel" />
       <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2"><span className="text-sm font-semibold">Comments</span>
         <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-[var(--muted)] hover:bg-[var(--surface-muted)]"><X size={15} /></button></div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">

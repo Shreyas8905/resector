@@ -23,6 +23,7 @@ import DashboardsTool from "@/components/dashboard/DashboardsTool";
 import PaperGraphView from "@/components/PaperGraphView";
 import ThemeToggle from "@/components/ThemeToggle";
 import SetupBanner from "@/components/SetupBanner";
+import UpdateStatus from "@/components/UpdateStatus";
 
 type Tool =
   | "sifter"
@@ -169,8 +170,11 @@ export default function Page() {
           ))}
         </nav>
 
-        <div className={`border-t border-[var(--border)] py-3 ${isSidebarOpen ? "px-4" : "flex justify-center"}`}>
-          <GitHubLink compact={!isSidebarOpen} />
+        <div className="border-t border-[var(--border)]">
+          <UpdateStatus compact={!isSidebarOpen} />
+          <div className={`py-3 ${isSidebarOpen ? "px-4" : "flex justify-center"}`}>
+            <GitHubLink compact={!isSidebarOpen} />
+          </div>
         </div>
       </aside>
 

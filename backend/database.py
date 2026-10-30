@@ -203,6 +203,46 @@ class AiUsage(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class WireSuggestion(Base):
+    """A link the agent proposes between two items (paper-paper or claim-paper). Additive table.
+    status: pending | accepted | dismissed | none (judged, no relation: kept so it is not paid for twice)."""
+    __tablename__ = "wire_suggestions"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    pair_key = Column(String, index=True)
+    a_kind = Column(String)                  # paper | claim
+    a_ref = Column(String)                   # document id, or canvas node id for a claim
+    b_kind = Column(String)
+    b_ref = Column(String)
+    relation = Column(String, default="related")
+    summary = Column(Text, default="")
+    evidence = Column(Text, default="[]")    # JSON list of cites {n, document_id, filename, page, quote, rects}
+    confidence = Column(Float, default=0)
+    status = Column(String, default="pending")
+    run_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class AgentRun(Base):
+    """One run of the wiring or gap agent: progress, cost and (for gaps) the result. Additive table."""
+    __tablename__ = "agent_runs"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    kind = Column(String)                    # wire | gaps
+    status = Column(String, default="running")   # running | done | failed | cancelled
+    total = Column(Integer, default=0)
+    done = Column(Integer, default=0)
+    found = Column(Integer, default=0)
+    tokens_in = Column(Integer, default=0)
+    tokens_out = Column(Integer, default=0)
+    message = Column(Text, default="")
+    result = Column(Text, nullable=True)     # JSON (gap findings)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    finished_at = Column(DateTime, nullable=True)
+
+
 # SQLite Setup
 engine = create_engine(
     settings.DATABASE_URL,

@@ -635,6 +635,8 @@ from .dashboards import router as dashboards_router
 app.include_router(dashboards_router)
 from .dashboards_ai import router as dashboards_ai_router
 app.include_router(dashboards_ai_router)
+from .dashboards_wire import router as dashboards_wire_router
+app.include_router(dashboards_wire_router)
 
 
 # Desktop app: the backend also serves the exported frontend (same origin, no CORS, no fixed API URL).

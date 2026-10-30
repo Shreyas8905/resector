@@ -28,6 +28,7 @@ import { FigureCards, FigureInfo } from "@/components/FigureCards";
 import { getAnalyzeFigures, setAnalyzeFigures } from "@/lib/figureSettings";
 import { friendlyError, errorText, openSettings } from "@/lib/errors";
 import { useDialogs } from "@/components/ui/Dialogs";
+import { ResizeHandle, panelStyle, usePanelWidth } from "@/components/ui/Resizable";
 
 interface Session {
   id: string;
@@ -59,32 +60,30 @@ interface UploadItem {
 const STARTER_PROMPTS = [
   {
     title: "Summarize the key findings",
-    prompt:
-      "Provide a comprehensive summary of the key findings, methodology, and empirical results in these papers.",
+    prompt: "Provide a comprehensive summary of the key findings, methodology, and empirical results in these papers.",
     icon: Sparkles,
   },
   {
     title: "Critique the methods",
-    prompt:
-      "Critique the experimental design and theoretical assumptions made by the authors. What are the major limitations?",
+    prompt: "Critique the experimental design and theoretical assumptions made by the authors. What are the major limitations?",
     icon: HelpCircle,
   },
   {
     title: "Compare results in a table",
-    prompt:
-      "Compare performance benchmarks, dataset statistics, and baseline comparisons reported across the uploaded papers in a table format.",
+    prompt: "Compare performance benchmarks, dataset statistics, and baseline comparisons reported across the uploaded papers in a table format.",
     icon: BookOpen,
   },
   {
     title: "Find open questions",
-    prompt:
-      "What open problems and unanswered questions do the authors propose for future work?",
+    prompt: "What open problems and unanswered questions do the authors propose for future work?",
     icon: FileText,
   },
 ];
 
 export default function PaperChatPage() {
   const { confirm, ask, notify, dialogs } = useDialogs();
+  const sessionsPanel = usePanelWidth("chat_sessions", 256, 200, 420);
+  const papersPanel = usePanelWidth("chat_papers", 256, 200, 480);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -100,8 +99,7 @@ export default function PaperChatPage() {
   const [isSessionPaneOpen, setIsSessionPaneOpen] = useState(false);
   const [isDocumentPaneOpen, setIsDocumentPaneOpen] = useState(false);
   const [activeView, setActiveView] = useState<"chat" | "graph">("chat");
-  const [selectedPaperForGraph, setSelectedPaperForGraph] =
-    useState<string>("");
+  const [selectedPaperForGraph, setSelectedPaperForGraph] = useState<string>("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [sessionSearchQuery, setSessionSearchQuery] = useState("");
 
@@ -171,8 +169,7 @@ export default function PaperChatPage() {
   const createNewSession = async () => {
     const title = await ask({
       title: "New research session",
-      message:
-        "A session keeps one set of papers and the conversation about them together.",
+      message: "A session keeps one set of papers and the conversation about them together.",
       label: "Session name",
       initial: "New Research Session",
       confirmLabel: "Create session",
@@ -198,29 +195,18 @@ export default function PaperChatPage() {
       await fetchSessions();
       setActiveSessionId(data.session_id);
     } catch (e) {
-      notify(
-        e instanceof Error ? e.message : "Could not create the session.",
-        "error",
-      );
+      notify(e instanceof Error ? e.message : "Could not create the session.", "error");
     }
   };
 
   const deleteSession = async (sessionId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (
-      !(await confirm({
-        title: "Delete this session?",
-        message:
-          "Its messages and uploaded papers will be removed. This can’t be undone.",
-        danger: true,
-      }))
-    )
-      return;
+    if (!(await confirm({ title: "Delete this session?", message: "Its messages and uploaded papers will be removed. This can’t be undone.", danger: true }))) return;
 
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/chat/sessions/${sessionId}`,
-        { method: "DELETE" },
+        { method: "DELETE" }
       );
       if (!response.ok) throw new Error("Failed to delete session");
 
@@ -230,53 +216,34 @@ export default function PaperChatPage() {
         setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (err) {
-      notify(
-        err instanceof Error ? err.message : "Could not delete the session.",
-        "error",
-      );
+      notify(err instanceof Error ? err.message : "Could not delete the session.", "error");
     }
   };
 
   const clearChatHistory = async () => {
     if (!activeSessionId) return;
-    if (
-      !(await confirm({
-        title: "Clear this conversation?",
-        message:
-          "All messages in this session will be removed. Your papers stay.",
-        confirmLabel: "Clear chat",
-        danger: true,
-      }))
-    )
-      return;
+    if (!(await confirm({ title: "Clear this conversation?", message: "All messages in this session will be removed. Your papers stay.", confirmLabel: "Clear chat", danger: true }))) return;
 
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/chat/sessions/${activeSessionId}/messages`,
-        { method: "DELETE" },
+        { method: "DELETE" }
       );
       if (!response.ok) throw new Error("Failed to clear messages");
       setMessages([]);
     } catch (err) {
-      notify(
-        err instanceof Error ? err.message : "Could not clear the messages.",
-        "error",
-      );
+      notify(err instanceof Error ? err.message : "Could not clear the messages.", "error");
     }
   };
 
   const deleteSingleMessage = async (index: number, msgId?: number) => {
-    if (!(await confirm({ title: "Delete this message?", danger: true })))
-      return;
+    if (!(await confirm({ title: "Delete this message?", danger: true }))) return;
 
     if (msgId) {
       try {
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/chat/messages/${msgId}`,
-          {
-            method: "DELETE",
-          },
-        );
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat/messages/${msgId}`, {
+          method: "DELETE",
+        });
       } catch (err) {
         console.error("Failed to delete message on backend", err);
       }
@@ -350,10 +317,7 @@ export default function PaperChatPage() {
           setIsUploading(false);
           fetchDocuments(sessionId);
           // Set the uploaded file as the target for the citation network
-          const cleanName = files[0].name
-            .replace(/\.pdf$/i, "")
-            .replace(/^[0-9a-fA-F-]+_/, "")
-            .replace(/_/g, " ");
+          const cleanName = files[0].name.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ");
           setSelectedPaperForGraph(cleanName);
         }
       }, 1500);
@@ -364,26 +328,14 @@ export default function PaperChatPage() {
   };
 
   const openCitationNetworkForDoc = (filename: string) => {
-    const cleanTitle = filename
-      .replace(/\.pdf$/i, "")
-      .replace(/^[0-9a-fA-F-]+_/, "")
-      .replace(/_/g, " ");
+    const cleanTitle = filename.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ");
     setSelectedPaperForGraph(cleanTitle);
     setActiveView("graph");
   };
 
   const deleteDocument = async (docId: number) => {
     if (!activeSessionId) return;
-    if (
-      !(await confirm({
-        title: "Remove this paper?",
-        message:
-          "It will no longer be used to answer questions in this session.",
-        confirmLabel: "Remove",
-        danger: true,
-      }))
-    )
-      return;
+    if (!(await confirm({ title: "Remove this paper?", message: "It will no longer be used to answer questions in this session.", confirmLabel: "Remove", danger: true }))) return;
 
     try {
       const response = await fetch(
@@ -395,10 +347,7 @@ export default function PaperChatPage() {
       if (!response.ok) throw new Error("Failed to delete document");
       fetchDocuments(activeSessionId);
     } catch (e) {
-      notify(
-        e instanceof Error ? e.message : "Could not remove the paper.",
-        "error",
-      );
+      notify(e instanceof Error ? e.message : "Could not remove the paper.", "error");
     }
   };
 
@@ -448,11 +397,7 @@ export default function PaperChatPage() {
       const data = await response.json();
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: data.answer,
-          figures: data.figures || [],
-        },
+        { role: "assistant", content: data.answer, figures: data.figures || [] },
       ]);
     } catch (e) {
       setMessages((prev) => [
@@ -477,7 +422,7 @@ export default function PaperChatPage() {
   }, [input]);
 
   const filteredSessions = sessions.filter((s) =>
-    s.title.toLowerCase().includes(sessionSearchQuery.toLowerCase()),
+    s.title.toLowerCase().includes(sessionSearchQuery.toLowerCase())
   );
 
   const activeTitle = sessions.find((s) => s.id === activeSessionId)?.title;
@@ -498,17 +443,14 @@ export default function PaperChatPage() {
 
       {/* Sessions */}
       <aside
-        aria-label="Sessions"
-        className={`${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] max-lg:w-56 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
+        aria-label="Sessions" style={panelStyle(sessionsPanel.width)}
+        className={`${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
       >
+        <ResizeHandle panel={sessionsPanel} edge="right" label="Resize the chats panel" />
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between md:hidden">
             <span className="text-sm font-semibold">Sessions</span>
-            <button
-              onClick={() => setIsSessionPaneOpen(false)}
-              className="icon-btn !h-8 !w-8"
-              aria-label="Close sessions"
-            >
+            <button onClick={() => setIsSessionPaneOpen(false)} className="icon-btn !h-8 !w-8" aria-label="Close sessions">
               <X size={16} />
             </button>
           </div>
@@ -517,10 +459,7 @@ export default function PaperChatPage() {
           </button>
           {sessions.length > 5 && (
             <div className="relative">
-              <Search
-                size={14}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--subtle)]"
-              />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
               <input
                 type="text"
                 value={sessionSearchQuery}
@@ -536,9 +475,7 @@ export default function PaperChatPage() {
         <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           {filteredSessions.length === 0 ? (
             <li className="px-3 py-6 text-center text-xs text-[var(--subtle)]">
-              {sessionSearchQuery
-                ? "No sessions match that search."
-                : "No sessions yet. Create one to start."}
+              {sessionSearchQuery ? "No sessions match that search." : "No sessions yet. Create one to start."}
             </li>
           ) : (
             filteredSessions.map((s) => {
@@ -579,18 +516,12 @@ export default function PaperChatPage() {
         {!activeSessionId ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
             <div className="max-w-md space-y-2">
-              <h2 className="font-serif text-2xl font-semibold tracking-tight">
-                Start with a session
-              </h2>
+              <h2 className="font-serif text-2xl font-semibold tracking-tight">Start with a session</h2>
               <p className="text-sm leading-relaxed text-[var(--muted)]">
-                A session holds the papers you upload and the conversation about
-                them. Ask questions, and answers cite the paper they came from.
+                A session holds the papers you upload and the conversation about them. Ask questions, and answers cite the paper they came from.
               </p>
             </div>
-            <button
-              onClick={createNewSession}
-              className="btn btn-primary btn-lg"
-            >
+            <button onClick={createNewSession} className="btn btn-primary btn-lg">
               <Plus size={16} /> New session
             </button>
           </div>
@@ -608,19 +539,15 @@ export default function PaperChatPage() {
                     <MessageSquare size={14} />
                   </button>
                   <div className="min-w-0">
-                    <h2 className="truncate text-sm font-semibold">
-                      {activeTitle}
-                    </h2>
+                    <h2 className="truncate text-sm font-semibold">{activeTitle}</h2>
                     <p className="truncate text-xs text-[var(--muted)]">
-                      {documents.length} paper
-                      {documents.length === 1 ? "" : "s"} · {messages.length}{" "}
-                      message{messages.length === 1 ? "" : "s"}
+                      {documents.length} paper{documents.length === 1 ? "" : "s"} · {messages.length} message{messages.length === 1 ? "" : "s"}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  {/* <div className="flex rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-0.5" role="tablist" aria-label="View">
+                  <div className="flex rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-0.5" role="tablist" aria-label="View">
                     <button
                       role="tab"
                       aria-label="Chat"
@@ -651,38 +578,36 @@ export default function PaperChatPage() {
                       <Network size={13} /> <span className="hidden 2xl:inline">Citation network</span>
                       <span className="hidden sm:inline 2xl:hidden">Network</span>
                     </button>
-                  </div> */}
+                  </div>
+
                   {messages.length > 0 && activeView === "chat" && (
-                    <button
-                      onClick={clearChatHistory}
-                      className="btn btn-quiet btn-danger hidden !px-2.5 xl:inline-flex"
-                      aria-label="Clear chat"
-                      title="Clear chat messages"
-                    >
+                    <button onClick={clearChatHistory} className="btn btn-quiet btn-danger hidden !px-2.5 xl:inline-flex" aria-label="Clear chat" title="Clear chat messages">
                       <Trash2 size={13} /> Clear
                     </button>
                   )}
-                  <input
-                    type="checkbox"
-                    className="accent-[var(--accent)]"
-                    checked={analyzeFigures}
-                    onChange={(e) => {
-                      setAnalyzeFiguresState(e.target.checked);
-                      setAnalyzeFigures(e.target.checked);
-                    }}
-                  />
-                  Analyze figures
+
+                  <label
+                    className="hidden cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-[var(--muted)] 2xl:flex"
+                    title="A vision model reads each figure in new uploads (about 1 API call per figure, max 30 per paper). Figures are always extracted and searchable by caption."
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-[var(--accent)]"
+                      checked={analyzeFigures}
+                      onChange={(e) => {
+                        setAnalyzeFiguresState(e.target.checked);
+                        setAnalyzeFigures(e.target.checked);
+                      }}
+                    />
+                    Analyze figures
+                  </label>
+
                   <label className="btn btn-secondary hidden cursor-pointer sm:inline-flex">
                     <Upload size={14} className="text-[var(--accent)]" />
                     <span className="hidden xl:inline">Upload PDF</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
+                    <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                   </label>
+
                   <button
                     onClick={() => setIsDocumentPaneOpen((o) => !o)}
                     className="btn btn-secondary md:hidden"
@@ -695,25 +620,13 @@ export default function PaperChatPage() {
 
               {/* Upload progress */}
               {isUploading && (
-                <div
-                  role="status"
-                  className="anim-pop absolute right-4 top-16 z-30 w-72 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-[var(--shadow-pop)]"
-                >
+                <div role="status" className="anim-pop absolute right-4 top-16 z-30 w-72 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-[var(--shadow-pop)]">
                   <div className="mb-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Loader2
-                        size={14}
-                        className="animate-spin text-[var(--accent)]"
-                      />
-                      <h3 className="text-sm font-semibold">
-                        Reading your papers
-                      </h3>
+                      <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
+                      <h3 className="text-sm font-semibold">Reading your papers</h3>
                     </div>
-                    <button
-                      onClick={() => setIsUploading(false)}
-                      className="text-[var(--muted)] hover:text-[var(--foreground)]"
-                      aria-label="Hide progress"
-                    >
+                    <button onClick={() => setIsUploading(false)} className="text-[var(--muted)] hover:text-[var(--foreground)]" aria-label="Hide progress">
                       <X size={14} />
                     </button>
                   </div>
@@ -722,15 +635,10 @@ export default function PaperChatPage() {
                       <div key={i} className="space-y-1">
                         <div className="flex justify-between gap-3 text-xs">
                           <span className="min-w-0 truncate">{file.name}</span>
-                          <span className="shrink-0 tabular-nums text-[var(--muted)]">
-                            {file.progress}%
-                          </span>
+                          <span className="shrink-0 tabular-nums text-[var(--muted)]">{file.progress}%</span>
                         </div>
                         <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--surface-strong)]">
-                          <div
-                            className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
-                            style={{ width: `${file.progress}%` }}
-                          />
+                          <div className="h-full rounded-full bg-[var(--accent)] transition-all duration-300" style={{ width: `${file.progress}%` }} />
                         </div>
                       </div>
                     ))}
@@ -744,10 +652,7 @@ export default function PaperChatPage() {
                     initialQuery={
                       selectedPaperForGraph ||
                       (documents.length > 0
-                        ? documents[0].filename
-                            .replace(/\.pdf$/i, "")
-                            .replace(/^[0-9a-fA-F-]+_/, "")
-                            .replace(/_/g, " ")
+                        ? documents[0].filename.replace(/\.pdf$/i, "").replace(/^[0-9a-fA-F-]+_/, "").replace(/_/g, " ")
                         : "")
                     }
                   />
@@ -757,19 +662,18 @@ export default function PaperChatPage() {
                   {documents.length > 0 && (
                     <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)] px-4 py-1.5 text-xs">
                       <div className="flex min-w-0 items-center gap-2">
-                        <FileText
-                          size={13}
-                          className="shrink-0 text-[var(--accent)]"
-                        />
+                        <FileText size={13} className="shrink-0 text-[var(--accent)]" />
                         <span className="truncate text-[var(--muted)]">
-                          Answering from{" "}
-                          <span className="font-medium text-[var(--foreground)]">
-                            {documents[0].filename}
-                          </span>
-                          {documents.length > 1 &&
-                            ` and ${documents.length - 1} more`}
+                          Answering from <span className="font-medium text-[var(--foreground)]">{documents[0].filename}</span>
+                          {documents.length > 1 && ` and ${documents.length - 1} more`}
                         </span>
                       </div>
+                      <button
+                        onClick={() => openCitationNetworkForDoc(documents[0].filename)}
+                        className="flex shrink-0 items-center gap-1 font-medium text-[var(--accent-strong)] hover:underline"
+                      >
+                        <Network size={12} /> Citation network
+                      </button>
                     </div>
                   )}
 
@@ -779,9 +683,7 @@ export default function PaperChatPage() {
                       <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-8 py-8">
                         <div className="space-y-2">
                           <h3 className="font-serif text-2xl font-semibold tracking-tight">
-                            {documents.length > 0
-                              ? "Ask your papers a question"
-                              : "Add a paper to begin"}
+                            {documents.length > 0 ? "Ask your papers a question" : "Add a paper to begin"}
                           </h3>
                           <p className="max-w-lg text-sm leading-relaxed text-[var(--muted)]">
                             {documents.length > 0
@@ -793,28 +695,16 @@ export default function PaperChatPage() {
                           {STARTER_PROMPTS.map((starter, i) => {
                             const IconComponent = starter.icon;
                             return (
-                              <li
-                                key={i}
-                                className="border-b border-[var(--border)]"
-                              >
+                              <li key={i} className="border-b border-[var(--border)]">
                                 <button
-                                  onClick={() =>
-                                    handleSendMessage(starter.prompt)
-                                  }
+                                  onClick={() => handleSendMessage(starter.prompt)}
                                   disabled={isLoading}
                                   className="group flex w-full items-start gap-3.5 px-1 py-3.5 text-left transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
                                 >
-                                  <IconComponent
-                                    size={16}
-                                    className="mt-0.5 shrink-0 text-[var(--accent)]"
-                                  />
+                                  <IconComponent size={16} className="mt-0.5 shrink-0 text-[var(--accent)]" />
                                   <span className="min-w-0">
-                                    <span className="block text-sm font-semibold group-hover:text-[var(--accent-strong)]">
-                                      {starter.title}
-                                    </span>
-                                    <span className="mt-0.5 line-clamp-2 block text-[13px] leading-relaxed text-[var(--muted)]">
-                                      {starter.prompt}
-                                    </span>
+                                    <span className="block text-sm font-semibold group-hover:text-[var(--accent-strong)]">{starter.title}</span>
+                                    <span className="mt-0.5 line-clamp-2 block text-[13px] leading-relaxed text-[var(--muted)]">{starter.prompt}</span>
                                   </span>
                                 </button>
                               </li>
@@ -839,28 +729,12 @@ export default function PaperChatPage() {
                               ) : (
                                 <div className="w-full">
                                   <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
-                                    <span className="light-logo">
-                                      <Image
-                                        src="/logos/logo-light.png"
-                                        alt=""
-                                        width={20}
-                                        height={20}
-                                      />
-                                    </span>
-                                    <span className="dark-logo">
-                                      <Image
-                                        src="/logos/logo-dark.png"
-                                        alt=""
-                                        width={20}
-                                        height={20}
-                                      />
-                                    </span>
+                                    <span className="light-logo"><Image src="/logos/logo-light.png" alt="" width={20} height={20} /></span>
+                                    <span className="dark-logo"><Image src="/logos/logo-dark.png" alt="" width={20} height={20} /></span>
                                     ReSector
                                   </div>
                                   <div className="prose break-words">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                      {m.content}
-                                    </ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                                     <FigureCards figures={m.figures} />
                                   </div>
                                 </div>
@@ -868,21 +742,14 @@ export default function PaperChatPage() {
 
                               <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                                 <button
-                                  onClick={() =>
-                                    copyMessageContent(m.content, i)
-                                  }
+                                  onClick={() => copyMessageContent(m.content, i)}
                                   className="btn btn-quiet !gap-1 !px-2 !py-1 !text-xs"
                                   title="Copy message"
                                 >
                                   {copiedIndex === i ? (
                                     <>
-                                      <Check
-                                        size={12}
-                                        className="text-[var(--success)]"
-                                      />
-                                      <span className="text-[var(--success)]">
-                                        Copied
-                                      </span>
+                                      <Check size={12} className="text-[var(--success)]" />
+                                      <span className="text-[var(--success)]">Copied</span>
                                     </>
                                   ) : (
                                     <>
@@ -903,14 +770,8 @@ export default function PaperChatPage() {
                         })}
 
                         {isLoading && (
-                          <div
-                            role="status"
-                            className="flex items-center gap-3 text-sm text-[var(--muted)]"
-                          >
-                            <span
-                              className="flex items-center gap-1"
-                              aria-hidden
-                            >
+                          <div role="status" className="flex items-center gap-3 text-sm text-[var(--muted)]">
+                            <span className="flex items-center gap-1" aria-hidden>
                               <span className="thinking-dot" />
                               <span className="thinking-dot" />
                               <span className="thinking-dot" />
@@ -942,34 +803,19 @@ export default function PaperChatPage() {
                         className="block max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[15px] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:!outline-none"
                       />
                       <div className="flex items-center justify-between px-2.5 pb-2.5">
-                        <label
-                          className="btn btn-quiet cursor-pointer !px-2.5 !py-1.5 !text-xs"
-                          title="Attach PDFs"
-                        >
+                        <label className="btn btn-quiet cursor-pointer !px-2.5 !py-1.5 !text-xs" title="Attach PDFs">
                           <Paperclip size={14} /> Attach PDF
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf"
-                            className="hidden"
-                            onChange={handleFileUpload}
-                          />
+                          <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                         </label>
                         <div className="flex items-center gap-3">
-                          <span className="hidden text-xs text-[var(--subtle)] sm:inline">
-                            Enter to send · Shift+Enter for a new line
-                          </span>
+                          <span className="hidden text-xs text-[var(--subtle)] sm:inline">Enter to send · Shift+Enter for a new line</span>
                           <button
                             onClick={() => handleSendMessage()}
                             disabled={isLoading || !input.trim()}
                             aria-label="Send message"
                             className="btn btn-primary !rounded-full !px-3.5"
                           >
-                            {isLoading ? (
-                              <Loader2 className="animate-spin" size={14} />
-                            ) : (
-                              <Send size={14} />
-                            )}
+                            {isLoading ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
                             <span>{isLoading ? "Thinking" : "Send"}</span>
                           </button>
                         </div>
@@ -982,21 +828,13 @@ export default function PaperChatPage() {
 
             {/* Papers */}
             <aside
-              aria-label="Papers"
-              className={`${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] max-lg:w-56 max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
+              aria-label="Papers" style={panelStyle(papersPanel.width)}
+              className={`${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
             >
+              <ResizeHandle panel={papersPanel} edge="left" label="Resize the papers panel" />
               <div className="flex items-center justify-between px-4 py-3">
-                <h3 className="text-sm font-semibold">
-                  Papers{" "}
-                  <span className="font-normal text-[var(--muted)]">
-                    ({documents.length})
-                  </span>
-                </h3>
-                <button
-                  onClick={() => setIsDocumentPaneOpen(false)}
-                  className="icon-btn !h-8 !w-8 md:hidden"
-                  aria-label="Close papers"
-                >
+                <h3 className="text-sm font-semibold">Papers <span className="font-normal text-[var(--muted)]">({documents.length})</span></h3>
+                <button onClick={() => setIsDocumentPaneOpen(false)} className="icon-btn !h-8 !w-8 md:hidden" aria-label="Close papers">
                   <X size={15} />
                 </button>
               </div>
@@ -1004,40 +842,20 @@ export default function PaperChatPage() {
               <ul className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)]">
                 {documents.length === 0 ? (
                   <li className="space-y-3 px-4 py-10 text-center">
-                    <BookOpen
-                      size={22}
-                      className="mx-auto text-[var(--subtle)]"
-                    />
-                    <p className="text-xs text-[var(--muted)]">
-                      No papers in this session yet.
-                    </p>
+                    <BookOpen size={22} className="mx-auto text-[var(--subtle)]" />
+                    <p className="text-xs text-[var(--muted)]">No papers in this session yet.</p>
                     <label className="btn btn-secondary cursor-pointer !text-xs">
                       Upload PDF
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                      />
+                      <input type="file" multiple accept=".pdf" className="hidden" onChange={handleFileUpload} />
                     </label>
                   </li>
                 ) : (
                   documents.map((doc) => (
-                    <li
-                      key={doc.id}
-                      className="group border-b border-[var(--border)] px-4 py-3"
-                    >
+                    <li key={doc.id} className="group border-b border-[var(--border)] px-4 py-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-2.5">
-                          <File
-                            size={14}
-                            className="mt-0.5 shrink-0 text-[var(--accent)]"
-                          />
-                          <span
-                            className="line-clamp-3 text-[13px] font-medium leading-snug"
-                            title={doc.filename}
-                          >
+                          <File size={14} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+                          <span className="line-clamp-3 text-[13px] font-medium leading-snug" title={doc.filename}>
                             {doc.filename}
                           </span>
                         </div>
@@ -1050,6 +868,13 @@ export default function PaperChatPage() {
                           <Trash2 size={13} />
                         </button>
                       </div>
+                      <button
+                        onClick={() => openCitationNetworkForDoc(doc.filename)}
+                        className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[var(--accent-strong)] hover:underline"
+                        title="Explore the papers this one cites and is cited by"
+                      >
+                        <Network size={12} /> Citation network
+                      </button>
                     </li>
                   ))
                 )}
