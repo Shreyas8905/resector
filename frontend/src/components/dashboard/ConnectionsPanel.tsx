@@ -19,7 +19,7 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
   onStarted: () => void; onFocus: (s: Suggestion) => void; onAccept: (s: Suggestion) => void;
   onDismiss: (s: Suggestion) => void; onCite: (c: Cite) => void; onClose: () => void;
 }) {
-  const panel = usePanelWidth("dash_connections", 384, 300, 720);
+  const panel = usePanelWidth("dash_connections", 330, 280, 560);
   const [includeClaims, setIncludeClaims] = useState(true);
   const [maxPairs, setMaxPairs] = useState(12);
   const [est, setEst] = useState<{ calls: number; tokens: number } | null>(null);
@@ -48,7 +48,7 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
   };
 
   return (
-    <aside style={panelStyle(panel.width)} className="anim-slide-in relative flex w-96 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
+    <aside style={panelStyle(panel.width)} className="anim-slide-in relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
       <ResizeHandle panel={panel} edge="left" label="Resize the Connections panel" />
       <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
         <span className="text-sm font-semibold">Connections</span>
