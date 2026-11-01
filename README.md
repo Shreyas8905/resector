@@ -47,6 +47,10 @@ Put papers, quotes, figures, your own ideas and notes on an infinite board and d
 | **Summarize and compare** | One-click summaries, and a comparison table (method, data, results, limitations...) filled in across many papers, each cell cited. |
 | **Find the connections** | An assistant proposes where papers support, contradict, extend or share methods with each other, with a quote from **both** sides. Nothing is added until you accept it. A matrix view shows every pair at a glance. |
 | **Check your own claims** | Write what you believe your research shows. ReSector tells you which claims your papers back, which they contradict, and what to search for next. |
+| **Write with sources** | A draft editor beside your papers. Cite a saved quote or page with one click, ask for sources for the sentence you are on, and keep every earlier version of your text. |
+| **Check your draft** | Every sentence is compared with the passage it cites, and uncited factual sentences are compared with your papers. You see what is supported, only partly supported, unsupported or contradicted, and can add the missing citation in one click. |
+| **Draft with autopilot** | Plan an outline from your claims and links, then have it write each section from your papers with clickable citations. You review it first, and your draft is saved as a version so it can be undone. |
+| **Export with references** | Markdown or a print-ready web page (save as PDF) with numbered citations and a reference list that names the paper, page and quote. |
 | **Stay in control of cost** | A running token meter and a pre-run estimate for bigger actions, so there are no surprise bills. |
 | **Think in peace** | Comments, undo/redo, find-on-canvas, Markdown export, and one-click hiding of panels and toolbars when you need the whole canvas. |
 

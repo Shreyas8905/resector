@@ -37,12 +37,14 @@ backend/
   dashboards.py           dashboard CRUD, canvas save, documents, excerpts, comments, export
   dashboards_ai.py        grounded ask / summarize / compare / locate / estimate / usage
   dashboards_wire.py      connection-agent and gap-check runs, suggestions
+  dashboards_drafts.py    drafts, versions, source suggestions, autopilot, draft checker, exports
   tools.py                Sifter, Critique, Jargon logic
   services/
     rag_agent.py          ReAct agent for Paper Chat
     grounding.py          numbered passages, citation normalisation
     dashboard_ai.py       prompts and answer assembly for dashboards
     wiring.py, wire_ai.py pair selection, evidence checks, agent runs
+    drafts.py, draft_ai.py  citation markers, sentence splitting, checker, autopilot, exports
     token_budget.py       per-provider limits, trimming, retry helpers
     pdf_processor.py      chunking and indexing
     figure_*.py, vision*.py  figure extraction and vision analysis
@@ -64,7 +66,7 @@ desktop/
 SQLite tables (SQLAlchemy). Schema changes must be **additive** (new tables only) because there is no migration mechanism yet.
 
 - Chat side: user sessions, messages, documents (with processing progress and status), figure records.
-- Dashboard side: `Dashboard`, `CanvasNode`, `CanvasEdge`, `Excerpt`, `CanvasComment`, `AiUsage`, `WireSuggestion`, `AgentRun`.
+- Dashboard side: `Dashboard`, `CanvasNode`, `CanvasEdge`, `Excerpt`, `CanvasComment`, `AiUsage`, `WireSuggestion`, `AgentRun`, `Draft`, `DraftVersion`.
 
 Each dashboard owns a hidden chat session (ids prefixed `dash_`, filtered from the normal session list), so uploads, chunking, Chroma collections and figure extraction reuse the Paper Chat pipeline unchanged.
 
@@ -84,6 +86,15 @@ The canvas is saved by a debounced `PUT /dashboards/{id}/canvas` that replaces a
 - Results are stored as `WireSuggestion` rows with status `pending | accepted | dismissed | none`. `none` rows are kept so pairs are not paid for twice.
 - Pending suggestions render as ghost edges derived at view time (not saved in canvas state). Accepting creates a real edge; the accepted suggestion is matched to its edge by the two endpoint cards.
 - Runs execute as asyncio tasks with a registry, progress counters, token totals and cancellation (`AgentRun`). The gap check reports `supported | partly | contradicted | not_covered` per claim with citations and a suggested search.
+
+## 5b. Drafts, the checker and autopilot
+
+- A draft is Markdown with citation markers: `[@e12]` (a saved excerpt, exact position), `[@d5:p3]` (page 3 of paper 5), `[@d5]` (paper 5). Markers are resolved at view and export time, so renaming or deleting a paper cannot silently corrupt text; a marker whose source is gone is hidden in the preview and listed as missing on export.
+- **Cite while writing**: `POST /drafts/suggest` ranks saved excerpts by word overlap and adds vector-search passages. It makes no model call and costs no tokens.
+- **Checker** (`AgentRun` kind `check`, result stored as JSON with a content hash): sentences are split in code (headings, code, tables skipped; "et al.", "Fig." and similar are not sentence ends). Cited sentences are checked against the cited source text (the excerpt, or the best window of the cited page); uncited sentences that read like factual claims are checked against the two best retrieved passages. Up to 24 sentences are checked, three per model call. Verdicts are `supported | partial | unsupported | contradicted`; an uncited sentence with a supporting passage gets a one-click "Add this citation". The draft is never changed by the checker.
+- **Autopilot**: `outline` plans sections from claims, drawn links and paper names; `section` writes one section from numbered passages (saved quotes first), converts `[n]` to markers (`to_markers`, which drops invented numbers), and ends with a `TODO:` line when the papers do not cover the goal. The UI writes sections one at a time, stops on the first error, and applies results only after review, saving the previous text as a version first.
+- **Versions**: automatic snapshots (at most one per 10 minutes and only for real edits), manual saves, and restore points taken before autopilot or a restore; at most 60 are kept, oldest automatic ones pruned first.
+- **Export**: citations are numbered by first use and a References list is added (paper, page, optional quote). Formats: Markdown and print-ready HTML. References use file names because PDFs do not reliably carry bibliographic metadata.
 
 ## 6. Token budgets and provider limits
 
