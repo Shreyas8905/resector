@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Pin, Send, Trash2, X } from "lucide-react";
+import { Loader2, PenLine, Pin, Send, Trash2, X } from "lucide-react";
 import { aiConfig, dashboardApi, type ChatMsg, type Cite } from "@/lib/dashboardApi";
 import { formatTokens } from "@/lib/citations";
 import ErrorNotice from "@/components/ErrorNotice";
@@ -15,11 +15,12 @@ type Props = {
   selectedExcerptIds: number[];
   onCite: (c: Cite) => void;
   onPin: (question: string, answer: string, cites: Cite[]) => void;
+  onToDraft?: (answer: string, cites: Cite[]) => void;
   onUsageChanged: () => void;
   onClose: () => void;
 };
 
-export default function AskPanel({ dashboardId, papers, selectedDocIds, selectedExcerptIds, onCite, onPin, onUsageChanged, onClose }: Props) {
+export default function AskPanel({ dashboardId, papers, selectedDocIds, selectedExcerptIds, onCite, onPin, onToDraft, onUsageChanged, onClose }: Props) {
   const panel = usePanelWidth("dash_ask", 320, 260, 560);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -119,6 +120,7 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
             )}
             <button onClick={() => onPin(questionFor(i), m.content, m.cites)}
               className="btn btn-quiet mt-1 !px-2 !py-1 !text-xs"><Pin size={12} /> Pin to canvas</button>
+            {onToDraft && <button onClick={() => onToDraft(m.content, m.cites)} className="btn btn-quiet mt-1 !px-2 !py-1 !text-xs"><PenLine size={12} /> Add to draft</button>}
           </div>
         ))}
         {busy && <div className="flex items-center gap-2 text-xs text-[var(--muted)]"><Loader2 size={13} className="animate-spin" /> Reading the papers…</div>}

@@ -243,6 +243,31 @@ class AgentRun(Base):
     finished_at = Column(DateTime, nullable=True)
 
 
+class Draft(Base):
+    """A piece of writing attached to a dashboard. Markdown text with citation markers like
+    [@e12] (a saved excerpt) or [@d5:p3] (page 3 of paper 5). Additive table (Stage 4)."""
+    __tablename__ = "drafts"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), index=True)
+    title = Column(String, default="Untitled draft")
+    content = Column(Text, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class DraftVersion(Base):
+    """A saved earlier state of a draft (automatic, manual, or taken before autopilot/restore)."""
+    __tablename__ = "draft_versions"
+    __table_args__ = {"sqlite_autoincrement": True}
+    id = Column(Integer, primary_key=True)
+    draft_id = Column(Integer, ForeignKey("drafts.id", ondelete="CASCADE"), index=True)
+    label = Column(String, default="")
+    kind = Column(String, default="auto")        # auto | manual | autopilot | restore
+    content = Column(Text, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 # SQLite Setup
 engine = create_engine(
     settings.DATABASE_URL,

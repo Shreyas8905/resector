@@ -8,7 +8,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft, Check, Download, FilePlus2, Frame, Gauge, Library, Loader2, MessageSquare, Redo2, Search,
-  LayoutGrid, Link2, Maximize2, Minimize2, PanelRightClose, PanelRightOpen, Plus, Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
+  LayoutGrid, Link2, Maximize2, Minimize2, PenLine, PanelRightClose, PanelRightOpen, Plus, Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import {
   aiConfig, dashboardApi, type Cite, type CommentInfo, type DashboardFull, type DocInfo, type ExcerptInfo,
@@ -16,12 +16,14 @@ import {
 } from "@/lib/dashboardApi";
 import { edgeFromSuggestion, ghostLinks, nodeFor, suggestionForEdge, RELATION_LABEL } from "@/lib/wiring";
 import { formatTokens } from "@/lib/citations";
+import { citesToMarkers, type SourceInfo } from "@/lib/drafts";
 import { friendlyError, openSettings } from "@/lib/errors";
 import { useDialogs } from "@/components/ui/Dialogs";
 import { ResizeHandle, panelStyle, usePanelWidth } from "@/components/ui/Resizable";
 import AskPanel from "./AskPanel";
 import CompareDialog from "./CompareDialog";
 import ConnectionsPanel from "./ConnectionsPanel";
+import DraftView from "./DraftView";
 import MatrixView from "./MatrixView";
 import SuggestionCard from "./SuggestionCard";
 import type { Rect } from "@/lib/rects";
@@ -104,7 +106,9 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const [usage, setUsage] = useState<UsageTotals | null>(null);
   const [agent, setAgent] = useState<AgentState | null>(null);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
-  const [view, setView] = useState<"canvas" | "matrix">("canvas");
+  const [view, setView] = useState<"canvas" | "matrix" | "draft">("canvas");
+  const [draftMounted, setDraftMounted] = useState(false);          // keep the editor alive once opened
+  const [draftInsert, setDraftInsert] = useState<{ text: string; nonce: number } | null>(null);
   const [ghostId, setGhostId] = useState<number | null>(null);
   const [summarizing, setSummarizing] = useState<Set<string>>(new Set());
   const { confirm, notify, dialogs } = useDialogs();
@@ -381,6 +385,13 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
     setReader({ documentId, focus: { temp: { page, rects: [] }, nonce: Date.now() } });
   }, []);
 
+  /** A citation in a draft: a saved quote opens at its exact place, a page citation opens that page. */
+  const openSource = useCallback((src: SourceInfo) => {
+    if (src.quote) openCite({ n: 0, document_id: src.document_id, filename: src.filename, page: src.page, quote: src.quote, rects: src.rects });
+    else if (src.page) openPage(src.document_id, src.page);
+    else setReader({ documentId: src.document_id, focus: null });
+  }, [openCite, openPage]);
+
   const summarize = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
     if (!node) return;
@@ -652,6 +663,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             <div className="flex rounded-lg border border-[var(--border)] p-0.5" role="group" aria-label="View">
               <button className={`${tb} !px-1.5 !py-0.5 ${view === "canvas" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("canvas")} aria-pressed={view === "canvas"}>Canvas</button>
               <button className={`${tb} !px-1.5 !py-0.5 ${view === "matrix" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("matrix")} aria-pressed={view === "matrix"}><LayoutGrid size={13} /><span className="hidden xl:inline">Matrix</span></button>
+              <button className={`${tb} !px-1.5 !py-0.5 ${view === "draft" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => { setDraftMounted(true); setView("draft"); }} aria-pressed={view === "draft"}><PenLine size={13} /><span className="hidden xl:inline">Draft</span></button>
             </div>
             <button className={`${tb} ${connectionsOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`}
               onClick={() => { setConnectionsOpen((o) => !o); setAskOpen(false); setCommentsOpen(false); }}>
@@ -675,7 +687,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
         <div className="flex min-h-0 flex-1">
           <div
-            ref={wrapRef} className={`relative min-w-0 flex-1 ${view === "matrix" ? "hidden" : ""}`}
+            ref={wrapRef} className={`relative min-w-0 flex-1 ${view !== "canvas" ? "hidden" : ""}`}
             onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
             onDrop={(e) => {
               if (!e.dataTransfer.files.length) return;
@@ -774,6 +786,15 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
           {/* Hidden panels stay mounted, so a half-written question or an open paper is still there when they come back. */}
           <div className={panelsHidden ? "hidden" : "contents"}>
+          {draftMounted && (
+            <div className={view === "draft" ? "flex min-h-0 min-w-0 flex-1" : "hidden"}>
+              <DraftView
+                dashboardId={dashboardId} dashboardTitle={title} docs={documents} excerpts={excerpts} papers={readyPapers}
+                onOpenSource={openSource} onUsageChanged={refreshUsage} insertRequest={draftInsert}
+              />
+            </div>
+          )}
+
           {reader && readerDoc && (
             <div className="relative w-[40%] min-w-[320px] max-w-[640px] shrink-0 border-l border-[var(--border)] md:w-[var(--panel-w)] md:min-w-0 md:max-w-none" style={panelStyle(readerPanel.width)}>
               <ResizeHandle panel={readerPanel} edge="left" label="Resize the paper reader" />
@@ -799,6 +820,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
               dashboardId={dashboardId} papers={readyPapers}
               selectedDocIds={selection.docIds} selectedExcerptIds={selection.excerptIds}
               onCite={openCite} onPin={pinAnswer} onUsageChanged={refreshUsage} onClose={() => setAskOpen(false)}
+              onToDraft={(text, cites) => { setDraftMounted(true); setView("draft"); setDraftInsert({ text: citesToMarkers(text, cites), nonce: Date.now() }); }}
             />
           )}
 

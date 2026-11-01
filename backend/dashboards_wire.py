@@ -94,7 +94,8 @@ def agent_state(dash_id: str, db=Depends(get_db)):
                  for kind, ref in ((s.a_kind, s.a_ref), (s.b_kind, s.b_ref)))
         if ok:
             sugg.append(_sugg(s))
-    runs = db.query(AgentRun).filter(AgentRun.dashboard_id == d.id).order_by(AgentRun.id.desc()).limit(12).all()
+    runs = (db.query(AgentRun).filter(AgentRun.dashboard_id == d.id, AgentRun.kind.in_(["wire", "gaps"]))
+            .order_by(AgentRun.id.desc()).limit(12).all())      # draft checks are shown in the Draft view
     for r in runs:                                      # a run whose task is gone died with the app
         if r.status == "running" and r.id not in wire_ai.RUNS:
             r.status, r.message = "failed", "Interrupted (the app was restarted)."

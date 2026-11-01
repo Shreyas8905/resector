@@ -39,7 +39,7 @@ export type Suggestion = {
   status: "pending" | "accepted"; evidence: Cite[];
 };
 export type AgentRunInfo = {
-  id: number; kind: "wire" | "gaps"; status: "running" | "done" | "failed" | "cancelled";
+  id: number; kind: "wire" | "gaps" | "check"; status: "running" | "done" | "failed" | "cancelled";
   total: number; done: number; found: number; tokens_in: number; tokens_out: number; message: string;
   created_at: string; finished_at: string | null;
 };
@@ -51,6 +51,21 @@ export type AgentState = {
   suggestions: Suggestion[]; runs: AgentRunInfo[];
   gaps: (AgentRunInfo & { result: GapFinding[] }) | null; running: AgentRunInfo | null;
 };
+
+// ---- Stage 4: drafts
+export type DraftSummary = { id: number; title: string; updated_at: string; words: number };
+export type DraftFull = DraftSummary & { content: string; created_at: string };
+export type VersionInfo = { id: number; label: string; kind: "auto" | "manual" | "autopilot" | "restore"; created_at: string; chars: number; words: number; content?: string };
+export type SourceSuggestion = { marker: string; kind: "excerpt" | "passage"; document_id: number; filename: string; page: number | null; quote: string };
+export type OutlineSection = { heading: string; goal: string };
+export type SectionResult = { text: string; cites: (Cite & { marker: string })[]; uncited: boolean; usage: Usage };
+export type CheckVerdict = "supported" | "partial" | "unsupported" | "contradicted" | "unchecked";
+export type CheckFinding = {
+  idx: number; raw: string; sentence: string; section: string; cited: boolean; verdict: CheckVerdict; reason: string;
+  suggest: string | null; sources: { marker: string; filename: string; page: number | null; quote: string }[];
+};
+export type CheckResult = { draft_id: number; hash: string; findings: CheckFinding[]; skipped: number; counts?: Record<string, number> };
+export type CheckState = { run: AgentRunInfo | null; result: CheckResult | null; current_hash: string };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, init);
@@ -135,4 +150,34 @@ export const dashboardApi = {
   wireEstimate: (id: string, include_claims: boolean, max_pairs: number) =>
     req<{ calls: number; tokens_in: number; tokens_out: number; papers: number; claims: number }>(
       `/dashboards/${id}/wire/estimate`, json("POST", { include_claims, max_pairs })),
+
+  // ---- Stage 4: drafts
+  drafts: (id: string) => req<DraftSummary[]>(`/dashboards/${id}/drafts`),
+  createDraft: (id: string, title: string, content = "") => req<DraftFull>(`/dashboards/${id}/drafts`, json("POST", { title, content })),
+  getDraft: (id: string, draftId: number) => req<DraftFull>(`/dashboards/${id}/drafts/${draftId}`),
+  saveDraft: (id: string, draftId: number, patch: { title?: string; content?: string; snapshot?: string }) =>
+    req<{ id: number; updated_at: string; words: number }>(`/dashboards/${id}/drafts/${draftId}`, json("PUT", patch)),
+  deleteDraft: (id: string, draftId: number) => req<unknown>(`/dashboards/${id}/drafts/${draftId}`, { method: "DELETE" }),
+  versions: (id: string, draftId: number) => req<VersionInfo[]>(`/dashboards/${id}/drafts/${draftId}/versions`),
+  version: (id: string, draftId: number, vid: number) => req<VersionInfo>(`/dashboards/${id}/drafts/${draftId}/versions/${vid}`),
+  saveVersion: (id: string, draftId: number, label: string) => req<VersionInfo>(`/dashboards/${id}/drafts/${draftId}/versions`, json("POST", { label })),
+  restoreVersion: (id: string, draftId: number, vid: number) => req<DraftFull>(`/dashboards/${id}/drafts/${draftId}/versions/${vid}/restore`, { method: "POST" }),
+  deleteVersion: (id: string, draftId: number, vid: number) => req<unknown>(`/dashboards/${id}/drafts/${draftId}/versions/${vid}`, { method: "DELETE" }),
+  suggestSources: (id: string, text: string, document_ids?: number[]) =>
+    req<{ sources: SourceSuggestion[] }>(`/dashboards/${id}/drafts/suggest`, json("POST", { text, document_ids })),
+  outline: (id: string, instruction: string, document_ids?: number[]) =>
+    req<{ sections: OutlineSection[]; usage: Usage }>(`/dashboards/${id}/drafts/autopilot/outline`, json("POST", { ...aiConfig(), instruction, document_ids })),
+  writeSection: (id: string, body: { heading: string; goal: string; instruction: string; document_ids?: number[]; draft_text: string; words: number }) =>
+    req<SectionResult>(`/dashboards/${id}/drafts/autopilot/section`, json("POST", { ...aiConfig(), ...body })),
+  autopilotEstimate: (id: string, sections: number, words: number) => {
+    const c = aiConfig();
+    return req<{ tokens_in: number; tokens_out: number }>(`/dashboards/${id}/drafts/autopilot/estimate`,
+      json("POST", { sections, words, provider: c.provider, model_name: c.model_name }));
+  },
+  checkRun: (id: string, draftId: number) => req<{ run_id: number }>(`/dashboards/${id}/drafts/${draftId}/check/run`, json("POST", aiConfig())),
+  checkState: (id: string, draftId: number) => req<CheckState>(`/dashboards/${id}/drafts/${draftId}/check`),
+  checkEstimate: (id: string, draftId: number) =>
+    req<{ items: number; skipped: number; calls: number; tokens_in: number; tokens_out: number }>(`/dashboards/${id}/drafts/${draftId}/check/estimate`),
+  draftExportUrl: (id: string, draftId: number, format: "md" | "html", quotes = true) =>
+    `${API}/dashboards/${id}/drafts/${draftId}/export?format=${format}&quotes=${quotes}`,
 };
