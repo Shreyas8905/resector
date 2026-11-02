@@ -646,7 +646,18 @@ app.include_router(dashboards_drafts_router)
 _frontend_dir = os.environ.get("FRONTEND_DIR")
 if _frontend_dir and os.path.isdir(_frontend_dir):
     from fastapi.staticfiles import StaticFiles
-    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
+
+    class _FreshStatic(StaticFiles):
+        """Without cache headers the desktop webview guesses how long to keep a file and can keep showing
+        the previous version after an update. Pages are re-checked every time (cheap: ETag); the build's
+        hashed files never change, so they may be cached for good."""
+        async def get_response(self, path, scope):
+            resp = await super().get_response(path, scope)
+            hashed = path.replace("\\", "/").lstrip("/").startswith("_next/static/")
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable" if hashed else "no-cache"
+            return resp
+
+    app.mount("/", _FreshStatic(directory=_frontend_dir, html=True), name="frontend")
 
 
 if __name__ == "__main__":
