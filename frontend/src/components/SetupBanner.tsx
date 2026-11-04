@@ -24,8 +24,8 @@ export default function SetupBanner() {
   }, []);
   if (ready) return null;
   return (
-    <div className="flex w-full flex-col gap-4 rounded-[var(--radius-panel)] border border-[var(--accent)] bg-[var(--surface)] p-5 text-left sm:flex-row sm:items-center">
-      <KeyRound size={20} className="shrink-0 text-[var(--accent)]" />
+    <div className="setup-banner flex w-full flex-col gap-4 rounded-[var(--radius-panel)] border border-[var(--accent-line)] bg-[var(--accent-soft)] p-5 text-left shadow-[var(--shadow)] sm:flex-row sm:items-center">
+      <span className="tool-chip h-10 w-10 rounded-xl" style={{ "--t": "var(--accent)" } as React.CSSProperties}><KeyRound size={20} /></span>
       <div className="flex-1">
         <p className="text-sm font-semibold">Connect an AI service to get started</p>
         <p className="mt-0.5 text-sm text-[var(--muted)]">

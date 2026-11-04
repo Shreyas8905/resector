@@ -22,15 +22,18 @@ export function ToolLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-3xl space-y-7">
-      <div className="flex items-start gap-4 border-b border-[var(--border)] pb-6">
-        <div className="mt-1 text-[var(--accent)]">{icon}</div>
-        <div>
+    <div className="tool-workspace mx-auto max-w-4xl space-y-8">
+      <div className="tool-hero flex items-start gap-4 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)] sm:p-8">
+        <div className="tool-hero-icon tool-chip mt-1 h-11 w-11 rounded-xl" style={{ "--t": "var(--accent)" } as React.CSSProperties}>{icon}</div>
+        <div className="min-w-0">
+          <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">ReSector tool</p>
           <h2 className="font-serif text-[1.75rem] font-semibold leading-tight tracking-tight">{title}</h2>
           <p className="mt-1.5 max-w-xl text-[0.9375rem] leading-relaxed text-[var(--muted)]">{description}</p>
         </div>
       </div>
-      {children}
+      <div className="tool-stage rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-muted)] p-4 shadow-[var(--shadow)] sm:p-6">
+        {children}
+      </div>
     </div>
   );
 }
@@ -48,7 +51,7 @@ export function ToolInput({
 }) {
   const id = React.useId();
   return (
-    <div>
+    <div className="tool-input-block rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow)] sm:p-5">
       <label htmlFor={id} className="field-label">
         {label}
       </label>
@@ -87,7 +90,11 @@ export function ToolOutput({ content, isLoading }: ToolOutputProps) {
   if (!content) return null;
 
   return (
-    <div className="anim-fade rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] px-6 py-6 sm:px-8">
+    <div className="tool-output anim-fade rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] px-6 py-6 shadow-[var(--shadow)] sm:px-8">
+      <div className="mb-4 border-b border-[var(--border)] pb-3">
+        <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Result</p>
+        <p className="text-sm text-[var(--muted)]">Generated from the material you provided.</p>
+      </div>
       <div className="prose max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

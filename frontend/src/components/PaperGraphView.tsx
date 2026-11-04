@@ -645,9 +645,9 @@ export default function PaperGraphView({
   }, [graphData]);
 
   return (
-    <div className="flex h-full w-full flex-col bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
+    <div className="paper-graph-view flex h-full w-full flex-col bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
       {/* Control Bar (Search in titles, Sliders, Layout buttons) */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
+      <div className="paper-graph-toolbar flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3 shadow-sm">
         {/* Titles Density Slider */}
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
           <span className="text-[0.75rem] font-medium">Titles</span>
@@ -748,7 +748,7 @@ export default function PaperGraphView({
       </div>
 
       {/* Query Bar (when exploring or changing seed paper) */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2 text-xs">
+      <div className="paper-graph-query flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-muted)] px-5 py-3 text-xs">
         <div className="flex flex-1 items-center gap-2">
           <input
             type="text"

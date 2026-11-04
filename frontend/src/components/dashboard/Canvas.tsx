@@ -652,8 +652,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
 
   return (
     <CanvasContext.Provider value={ctx}>
-      <div className="flex h-full min-h-0 flex-col" onKeyDown={onKeyDown}>
-        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4">
+      <div className="dashboard-canvas flex h-full min-h-0 flex-col" onKeyDown={onKeyDown}>
+        <div className="dashboard-canvas-toolbar relative z-[60] flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4">
           <button onClick={onBack} className={tb} title="Back to all dashboards" aria-label="Back to all dashboards"><ArrowLeft size={16} /></button>
           <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={renameDashboard}
             aria-label="Dashboard name" className="min-w-0 max-w-[16rem] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 font-serif text-base font-semibold outline-none hover:border-[var(--border)] focus:border-[var(--accent)]" />
@@ -691,7 +691,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-                <div role="menu" className="anim-pop absolute right-0 top-full z-50 mt-1 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-pop)]" onClick={() => setMoreOpen(false)}>
+                <div role="menu" className="anim-pop absolute right-0 top-full z-[70] mt-1 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-pop)]" onClick={() => setMoreOpen(false)}>
                   <MenuItem icon={<Undo2 size={15} />} label="Undo" hint="Ctrl+Z" disabled={!undoStack.current.length} onClick={undo} />
                   <MenuItem icon={<Redo2 size={15} />} label="Redo" hint="Ctrl+Shift+Z" disabled={!redoStack.current.length} onClick={redo} />
                   <div className="my-1 h-px bg-[var(--border)]" />

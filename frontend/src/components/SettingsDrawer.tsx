@@ -212,7 +212,7 @@ export default function SettingsDrawer({ compact = false, stacked = false }: { c
           setConfig(loadConfig());
           setIsOpen(true);
         }}
-        className={stacked ? "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[0.75rem] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]" : `flex w-full items-center gap-3 rounded-[var(--radius-control)] py-2 text-left text-[0.9375rem] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] ${compact ? "justify-center px-0" : "px-3"}`}
+        className={stacked ? "rail-action flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[0.75rem] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]" : `flex w-full items-center gap-3 rounded-[var(--radius-control)] py-2 text-left text-[0.9375rem] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] ${compact ? "justify-center px-0" : "px-3"}`}
         title="AI settings: choose your AI service and paste your key"
         aria-label={compact ? "Settings" : undefined}
       >

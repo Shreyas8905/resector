@@ -11,7 +11,7 @@ const THEMES: { id: ThemePref; label: string; Icon: React.ComponentType<{ size?:
 ];
 
 /** One small menu for how ReSector looks: theme and text size. Lives at the bottom of the navigation. */
-const RAIL_BTN = "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[0.75rem] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
+const RAIL_BTN = "nav-rail-button flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[0.6875rem] font-medium leading-tight text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
 
 export default function AppearanceMenu({ compact = false, stacked = false }: { compact?: boolean; stacked?: boolean }) {
   const { theme, setTheme, text, setText } = useAppearance();
@@ -33,10 +33,10 @@ export default function AppearanceMenu({ compact = false, stacked = false }: { c
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open} aria-haspopup="dialog" title="Appearance: theme and text size"
         aria-label={compact ? "Appearance" : undefined}
-        className={stacked ? RAIL_BTN : `flex w-full items-center gap-3 rounded-[var(--radius-control)] py-2 text-left text-[0.9375rem] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] ${compact ? "justify-center px-0" : "px-3"}`}
+        className={stacked ? `rail-action ${RAIL_BTN}` : `flex w-full items-center gap-3 rounded-[var(--radius-control)] py-2 text-left text-[0.9375rem] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] ${compact ? "justify-center px-0" : "px-3"}`}
       >
         <Palette size={stacked ? 22 : 18} className="shrink-0" />
-        {stacked ? <span>Text size</span> : !compact && <span className="truncate">Appearance</span>}
+        {stacked ? <span>Appearance</span> : !compact && <span className="truncate">Appearance</span>}
       </button>
       {open && (
         <div role="dialog" aria-label="Appearance" className="anim-pop absolute bottom-0 left-full z-50 ml-3 w-72 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-pop)]">

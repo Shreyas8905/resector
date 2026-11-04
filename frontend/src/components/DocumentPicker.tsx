@@ -17,7 +17,7 @@ export default function DocumentPicker({
   const [analyze, setAnalyze] = useState(false);
   useEffect(() => setAnalyze(getAnalyzeFigures()), []);
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
+    <div className="document-picker flex flex-wrap items-center gap-3 rounded-[var(--radius-panel)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-4 text-sm">
       <input
         ref={ref}
         type="file"
@@ -30,7 +30,7 @@ export default function DocumentPicker({
         {file ? "Change document" : "Upload a PDF instead"}
       </button>
       {file && (
-        <span className="flex max-w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-muted)] py-1.5 pl-2.5 pr-1.5 text-[0.8125rem]">
+        <span         className="flex max-w-full items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--accent-soft)] py-1.5 pl-3 pr-1.5 text-[0.8125rem]">
           <FileText size={14} className="shrink-0 text-[var(--accent)]" />
           <span className="truncate">{file.name}</span>
           <button

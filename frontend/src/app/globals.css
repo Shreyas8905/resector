@@ -25,16 +25,16 @@
   --surface-muted: #f4f6fa;
   --surface-strong: #e8edf4;
   --border: #e1e6ee;
-  --border-strong: #c2cbda;
-  --muted: #5b6678;
-  --subtle: #6f7a8c;
+  --border-strong: #cbd3e0;
+  --muted: #4b5568;
+  --subtle: #7a8497;
   --accent: #2d5ba6;
   --accent-strong: #204a8d;
   --accent-contrast: #ffffff;
   --brand: #6f95d8;
-  --danger: #c0392b;
-  --success: #1f7a4f;
-  --warning: #a35f00;
+  --danger: #c2253a;
+  --success: #15803d;
+  --warning: #b45309;
   --focus: #2d5ba6;
   --shadow: 0 18px 50px rgb(11 18 32 / 0.06);
 
@@ -59,8 +59,9 @@
   --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--surface));
   --accent-line: color-mix(in srgb, var(--accent) 30%, var(--border));
   --shadow-pop: 0 1px 2px rgb(11 18 32 / 0.06), 0 12px 32px rgb(11 18 32 / 0.12);
-  --radius-control: 0.5rem;
-  --radius-panel: 0.75rem;
+  --radius-control: 0.75rem;
+  --radius-panel: 1.125rem;
+  --radius-float: 1.25rem;
 }
 
 :root[data-theme="dark"] {
@@ -70,9 +71,9 @@
   --surface-muted: #131519;
   --surface-strong: #1e2127;
   --border: #25282f;
-  --border-strong: #3b404b;
-  --muted: #a5adbb;
-  --subtle: #8a93a3;
+  --border-strong: #3a3f49;
+  --muted: #a3acbd;
+  --subtle: #6f7889;
   --accent: #7fa4e8;
   --accent-strong: #a3c0f2;
   --accent-contrast: #000000;
@@ -102,13 +103,13 @@
 
 /* Text size, chosen in the Appearance menu. Everything sized in rem scales with it. */
 html {
-  font-size: 16px;
+  font-size: 15px;
 }
 html[data-text="large"] {
-  font-size: 18px;
+  font-size: 16px;
 }
 html[data-text="xlarge"] {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 * {
@@ -124,7 +125,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -223,6 +224,412 @@ a:focus-visible,
     border-color 120ms ease,
     color 120ms ease,
     transform 120ms ease;
+}
+
+/* Paper chat is a reading surface: panels recede while the transcript stays
+   generous and the composer remains visually anchored to the content. */
+.paper-chat-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 34rem),
+    var(--background);
+}
+
+.app-rail {
+  gap: 0.15rem;
+  transition: width 180ms ease;
+  min-height: 0;
+  min-width: 0;
+  max-height: 100%;
+  overflow: visible;
+  border-right: 1px solid var(--border);
+}
+
+.app-rail > nav,
+.app-rail > div {
+  min-height: 0;
+  overflow: visible;
+}
+
+.app-rail > nav {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  padding-bottom: 0.5rem;
+}
+
+.app-rail > div {
+  flex-shrink: 0;
+}
+
+.app-rail-expanded {
+  align-items: stretch;
+}
+
+.app-rail-collapsed {
+  align-items: center;
+}
+
+.app-rail-collapsed .nav-rail-button {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  padding-inline: 0.25rem;
+  text-align: center;
+  font-size: 0.6875rem;
+}
+
+.app-rail-brand {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-bottom: 0.8rem;
+}
+
+.app-rail-brand:hover {
+  background: var(--surface-muted);
+}
+
+.nav-rail-button {
+  min-height: 3.2rem;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.nav-rail-button:hover {
+  transform: translateY(-1px);
+}
+
+.app-rail-expanded .nav-rail-button,
+.app-rail-expanded .rail-action {
+  flex-direction: row !important;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  padding-inline: 0.5rem;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.app-rail-expanded .nav-rail-button > svg,
+.app-rail-expanded .rail-action > svg {
+  width: 1.5rem;
+  min-width: 1.5rem;
+  margin-left: 0;
+}
+
+.app-rail-expanded .nav-rail-button > span,
+.app-rail-expanded .rail-action > span {
+  display: block;
+  flex: 1;
+}
+
+.app-rail-expanded .nav-rail-button > span,
+.app-rail-expanded .rail-action > span {
+  max-width: none;
+  text-align: left;
+}
+
+.app-rail-expanded > nav,
+.app-rail-expanded > div {
+  padding-inline: 0.2rem;
+}
+
+.app-rail-expanded .nav-theme-toggle {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  padding-inline: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.dashboard-topbar {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.dashboard-brand {
+  min-height: 2.75rem;
+}
+
+.dashboard-menu-button,
+.dashboard-icon-button {
+  color: var(--muted);
+}
+
+.dashboard-menu-button:hover,
+.dashboard-icon-button:hover {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.dashboard-search {
+  height: 2.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--background);
+  overflow: hidden;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.dashboard-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.dashboard-search-input {
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 1.25rem;
+  color: var(--foreground);
+  outline: 0;
+}
+
+.dashboard-search-input::placeholder {
+  color: var(--muted);
+}
+
+.dashboard-search-button {
+  height: 100%;
+  min-width: 3.5rem;
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.dashboard-search-button:hover {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.app-rail-collapsed .nav-rail-button > span,
+.app-rail-collapsed > div button > span,
+.app-rail-collapsed .app-rail-brand > .app-rail-wordmark,
+.app-rail-collapsed .app-rail-bottom-label {
+  display: none;
+}
+
+.app-rail-collapsed .nav-rail-button,
+.app-rail-collapsed .nav-theme-toggle {
+  justify-content: center;
+}
+
+.paper-chat-theme-toggle {
+  min-height: 2.5rem;
+}
+
+.theme-icon-light,
+.theme-icon-dark {
+  display: inline-flex;
+}
+
+.theme-icon-dark {
+  display: none;
+}
+
+html.dark .theme-icon-light {
+  display: none;
+}
+
+html.dark .theme-icon-dark {
+  display: inline-flex;
+}
+
+.dashboard-theme-toggle {
+  border-color: var(--accent-line);
+  color: var(--accent-strong);
+}
+
+.nav-theme-toggle {
+  border: 1px solid transparent;
+}
+
+.nav-theme-toggle:hover {
+  border-color: var(--border);
+}
+
+.paper-chat-panel {
+  background: color-mix(in srgb, var(--surface) 94%, var(--background));
+}
+
+.paper-chat-shell > .paper-chat-panel {
+  margin-block: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.paper-chat-shell > .paper-chat-panel:first-of-type {
+  margin-left: 0.75rem;
+}
+
+.paper-chat-shell > .paper-chat-panel:last-of-type {
+  margin-right: 0.75rem;
+}
+
+.paper-chat-sidebar-head {
+  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface));
+  padding-block: 1rem;
+}
+
+.paper-chat-new-session {
+  letter-spacing: -0.01em;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.12) inset;
+}
+
+.paper-chat-session {
+  min-height: 2.75rem;
+}
+
+.paper-chat-session[aria-current="true"] {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.paper-chat-main-header {
+  min-height: 4.75rem;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  backdrop-filter: blur(18px);
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.paper-chat-transcript {
+  background:
+    radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 5%, transparent), transparent 34rem),
+    var(--background);
+}
+
+.paper-chat-empty h3 {
+  font-size: clamp(1.65rem, 3vw, 2.25rem);
+  letter-spacing: -0.04em;
+}
+
+.paper-chat-starter {
+  border-radius: var(--radius-control);
+  transition: padding-left 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.paper-chat-starter:hover {
+  padding-left: 0.6rem;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  transform: translateX(0.15rem);
+}
+
+.paper-chat-message {
+  animation: rs-page 220ms ease both;
+}
+
+.paper-chat-message-assistant {
+  max-width: 46rem;
+}
+
+.paper-chat-message-user {
+  width: 100%;
+}
+
+.paper-chat-user-bubble {
+  overflow-wrap: anywhere;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.16) inset, 0 8px 20px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.paper-chat-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  background: var(--accent-soft);
+}
+
+.paper-chat-composer-wrap {
+  background: linear-gradient(to bottom, transparent, var(--background) 1.25rem);
+}
+
+.paper-chat-composer {
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-pop);
+}
+
+.paper-chat-empty {
+  padding-inline: 0.5rem;
+}
+
+.paper-chat-empty > div:first-child {
+  max-width: 38rem;
+}
+
+.paper-chat-empty ul {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 0;
+}
+
+.paper-chat-empty .paper-chat-starter {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  padding: 0.9rem 1rem;
+}
+
+.paper-chat-empty .paper-chat-starter:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.paper-chat-paper {
+  margin: 0.45rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+}
+
+.paper-chat-paper:hover {
+  border-color: var(--accent-line);
+}
+
+@media (max-width: 767px) {
+  .app-rail {
+    position: absolute;
+    inset-block: 4rem 0;
+    left: 0;
+    box-shadow: var(--shadow-pop);
+  }
+
+  .dashboard-brand .font-serif {
+    display: none;
+  }
+
+  .dashboard-topbar {
+    padding-inline: 0.75rem;
+  }
+
+  .dashboard-search {
+    max-width: none;
+  }
+
+  .paper-chat-shell > .paper-chat-panel {
+    margin-block: 0;
+    border-radius: 0;
+    border-width: 0 1px 0 0;
+  }
+
+  .paper-chat-shell > .paper-chat-panel:last-of-type {
+    margin-right: 0;
+    border-width: 0 0 0 1px;
+  }
+}
+
+.paper-chat-paper {
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.paper-chat-paper:hover {
+  background: var(--surface-muted);
+}
+
+.paper-chat-message .prose {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.paper-chat-message .prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* Comfortable click targets by default; dense toolbars override padding with !py-* and stay compact. */
@@ -330,6 +737,17 @@ a:focus-visible,
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.note-editor,
+.note-editor:focus,
+.note-editor:hover {
+  background: transparent !important;
+  color: #1e293b !important;
+}
+
+.note-editor::placeholder {
+  color: #64748b !important;
+}
+
 .field-label {
   display: block;
   margin-bottom: 0.35rem;
@@ -346,6 +764,24 @@ a:focus-visible,
 
 }
 
+.react-flow__node {
+  border-radius: var(--radius-control);
+}
+
+.react-flow__controls {
+  border-radius: var(--radius-float);
+}
+
+.react-flow__controls-button:first-child {
+  border-top-left-radius: var(--radius-control);
+  border-top-right-radius: var(--radius-control);
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom-left-radius: var(--radius-control);
+  border-bottom-right-radius: var(--radius-control);
+}
+
 
 /* ---------------------------------------------------------- new building blocks */
 /* A tool's identity: set --t on the element, e.g. style={{ "--t": "var(--tool-chat)" }}. */
@@ -357,6 +793,191 @@ a:focus-visible,
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--t, var(--accent)) 14%, transparent);
   color: var(--t, var(--accent));
+}
+
+.tool-hero {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--t, var(--accent)) 7%, transparent), transparent 60%),
+    var(--surface);
+}
+
+.tool-hero h2 {
+  letter-spacing: -0.035em;
+}
+
+.tool-input-block {
+  padding: 0.25rem;
+}
+
+.tool-output {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, transparent), transparent 12rem),
+    var(--surface);
+}
+
+.tool-stage > * + * {
+  margin-top: 1.25rem;
+}
+
+.tool-stage > .space-y-6,
+.tool-stage > .space-y-5,
+.tool-stage > .space-y-4 {
+  border-radius: var(--radius-panel);
+}
+
+.tool-stage .btn-primary {
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tool-stage fieldset button[role="radio"] {
+  min-height: 4.5rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 70%),
+    var(--surface);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.tool-stage fieldset button[aria-checked="true"] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow);
+}
+
+.document-picker {
+  min-height: 4.5rem;
+}
+
+.dashboard-library-hero {
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--tool-dashboards) 12%, transparent), transparent 18rem),
+    var(--surface);
+}
+
+.dashboard-card-grid .card {
+  min-height: 12rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--tool-dashboards) 5%, transparent), transparent 55%),
+    var(--surface);
+}
+
+/* Feature components intentionally keep their own Tailwind layout classes.
+   These selectors give those surfaces the same rounded, layered treatment. */
+[class*="border-[var(--border)]"] {
+  border-radius: var(--radius-control);
+}
+
+[class*="border-[var(--border-strong)]"] {
+  border-radius: var(--radius-control);
+}
+
+[class*="bg-[var(--surface)]"][class*="border-"] {
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+[class*="bg-[var(--surface-muted)]"][class*="border-"] {
+  border-radius: var(--radius-control);
+}
+
+[class*="rounded-md"],
+[class*="rounded-lg"],
+[class*="rounded-xl"],
+[class*="rounded-2xl"] {
+  border-radius: var(--radius-control);
+}
+
+.dashboard-frame main > div > :not(.paper-chat-shell) {
+  animation: rs-page 220ms ease both;
+}
+
+.dashboard-frame .btn,
+.dashboard-frame .field,
+.dashboard-frame .icon-btn {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.dashboard-frame .btn-primary {
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.dashboard-canvas-toolbar,
+.paper-graph-toolbar,
+.paper-graph-query {
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--foreground) 4%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.dashboard-canvas-toolbar .seg {
+  border-radius: var(--radius-panel);
+}
+
+.paper-graph-toolbar > div[class*="border"],
+.paper-graph-query {
+  border-radius: var(--radius-panel);
+}
+
+.dashboard-canvas aside,
+.dashboard-canvas [role="dialog"],
+.dashboard-canvas .float,
+.paper-graph-view > div[class*="absolute"][class*="bg-[var(--surface)]"] {
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-pop);
+}
+
+.dashboard-canvas .react-flow__pane {
+  background-color: var(--background);
+}
+
+.paper-graph-view input,
+.paper-graph-view button {
+  min-height: 2.25rem;
+}
+
+.paper-graph-query input {
+  min-height: 2.5rem;
+}
+
+/* Deliberate nesting scale: panels are larger than the controls inside them,
+   so borders remain visually separated instead of merging together. */
+.tool-stage .btn,
+.tool-stage .field,
+.tool-stage select,
+.dashboard-canvas-toolbar .btn,
+.paper-graph-toolbar button,
+.paper-graph-query button {
+  border-radius: var(--radius-control);
+}
+
+.tool-stage .document-picker {
+  margin-top: 1rem;
+}
+
+.dashboard-canvas-toolbar {
+  gap: 0.75rem;
+  padding-inline: 1rem;
+}
+
+.dashboard-canvas-toolbar > .seg {
+  margin-inline: auto;
+}
+
+.paper-graph-toolbar,
+.paper-graph-query {
+  gap: 0.75rem;
+}
+
+.setup-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.setup-banner::after {
+  position: absolute;
+  right: -3rem;
+  top: -4rem;
+  width: 10rem;
+  height: 10rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  content: "";
+  pointer-events: none;
 }
 
 /* Segmented control (view switchers) */
@@ -726,7 +1347,17 @@ a:focus-visible,
 /* ------------------------------------------------------------------
    Calm layer (Figma-inspired): more air, softer edges, gentle motion.
 ------------------------------------------------------------------- */
-:root { --radius-control: 0.625rem; --radius-panel: 1rem; --radius-float: 1.25rem; }
+/* Shared soft-surface language: rounded like Figma, restrained like Apple. */
+:root {
+  --radius-control: 0.75rem;
+  --radius-panel: 1.125rem;
+  --radius-float: 1.5rem;
+  --shadow-soft: 0 8px 30px rgb(11 18 32 / 0.06);
+}
+
+:root[data-theme="dark"] {
+  --shadow-soft: 0 12px 36px rgb(0 0 0 / 0.34);
+}
 
 @keyframes rs-page {
   from { opacity: 0; transform: translateY(6px); }

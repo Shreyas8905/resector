@@ -41,11 +41,14 @@ export default function DashboardsTool() {
 
   const shown = (list ?? []).filter((d) => `${d.title} ${d.project}`.toLowerCase().includes(search.trim().toLowerCase()));
   return (
-    <div className="h-full overflow-y-auto px-6 py-12 sm:px-12 sm:py-16">
+    <div className="dashboard-library h-full overflow-y-auto px-6 py-10 sm:px-12 sm:py-14">
       {dialogs}
       <div className="mx-auto max-w-5xl">
-        <h2 className="font-serif text-4xl font-semibold leading-tight tracking-tight">Your dashboards</h2>
-        <p className="mt-3 max-w-xl text-lg leading-relaxed text-[var(--muted)]">One for each project. Put your papers on it, save the passages that matter, and write with your sources beside you.</p>
+        <div className="dashboard-library-hero rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)] sm:p-8">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--tool-dashboards)]">Research workspace</p>
+          <h2 className="mt-2 font-serif text-4xl font-semibold leading-tight tracking-tight">Your dashboards</h2>
+          <p className="mt-3 max-w-xl text-lg leading-relaxed text-[var(--muted)]">One for each project. Put your papers on it, save the passages that matter, and write with your sources beside you.</p>
+        </div>
 
         {list && list.length > 6 && (
           <div className="relative mt-8 max-w-sm">
@@ -58,7 +61,7 @@ export default function DashboardsTool() {
         {list === null ? (
           <div role="status" aria-label="Loading your dashboards" className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"><div className="skeleton h-40" /><div className="skeleton h-40" /><div className="skeleton h-40" /></div>
         ) : (
-          <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="dashboard-card-grid mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <li>
               <button onClick={() => setCreating(true)} className="flex h-full min-h-40 w-full flex-col items-center justify-center gap-3 rounded-[var(--radius-panel)] border-2 border-dashed border-[var(--border-strong)] p-6 text-[var(--muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-muted)]"><Plus size={24} /></span>

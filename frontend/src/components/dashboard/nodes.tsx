@@ -159,8 +159,8 @@ export function NoteNode({ id, data, selected }: NodeProps) {
   return (
     <Shell id={id} selected={selected} className="w-[240px] !border-black/10" accent={undefined}>
       <div className="rounded-xl p-2 text-slate-800" style={{ background: color }}>
-        <Text id={id} field="title" value={d.title ?? ""} placeholder="Title" rows={1} className="!font-semibold !text-slate-900 placeholder:!text-slate-500" />
-        <Text id={id} field="text" value={d.text ?? ""} placeholder="Write a note…" rows={4} className="!text-slate-800 placeholder:!text-slate-500" />
+        <Text id={id} field="title" value={d.title ?? ""} placeholder="Title" rows={1} className="note-editor !font-semibold !text-slate-900 placeholder:!text-slate-500" />
+        <Text id={id} field="text" value={d.text ?? ""} placeholder="Write a note…" rows={4} className="note-editor !text-slate-800 placeholder:!text-slate-500" />
         <div className="nodrag flex gap-1 px-1 pt-1">
           {NOTE_COLORS.map((c) => (
             <button key={c} onClick={() => update(id, { color: c })} className="h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: c }} aria-label="Colour" />

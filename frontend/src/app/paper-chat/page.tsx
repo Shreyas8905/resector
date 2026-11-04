@@ -19,6 +19,8 @@ import {
   FileText,
   HelpCircle,
   Search,
+  Sun,
+  Moon,
 } from "lucide-react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
@@ -33,6 +35,7 @@ import {
   panelStyle,
   usePanelWidth,
 } from "@/components/ui/Resizable";
+import { useAppearance } from "@/lib/appearance";
 
 interface Session {
   id: string;
@@ -90,6 +93,8 @@ const STARTER_PROMPTS = [
 
 export default function PaperChatPage() {
   const { confirm, ask, notify, dialogs } = useDialogs();
+  const { theme, setTheme } = useAppearance();
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
   const sessionsPanel = usePanelWidth("chat_sessions", 256, 200, 420);
   const papersPanel = usePanelWidth("chat_papers", 256, 200, 480);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -102,6 +107,9 @@ export default function PaperChatPage() {
   useEffect(() => {
     setAnalyzeFiguresState(getAnalyzeFigures());
   }, []);
+  useEffect(() => {
+    setIsDarkTheme(document.documentElement.dataset.theme === "dark");
+  }, [theme]);
   const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionPaneOpen, setIsSessionPaneOpen] = useState(false);
@@ -490,7 +498,7 @@ export default function PaperChatPage() {
   const activeTitle = sessions.find((s) => s.id === activeSessionId)?.title;
 
   return (
-    <div className="relative flex h-full min-h-0 bg-[var(--background)] text-[var(--foreground)]">
+    <div className="paper-chat-shell relative flex h-full min-h-0 bg-[var(--background)] text-[var(--foreground)]">
       {dialogs}
       {(isSessionPaneOpen || isDocumentPaneOpen) && (
         <button
@@ -507,14 +515,22 @@ export default function PaperChatPage() {
       <aside
         aria-label="Sessions"
         style={panelStyle(sessionsPanel.width)}
-        className={`${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
+        className={`paper-chat-panel ${isSessionPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
       >
         <ResizeHandle
           panel={sessionsPanel}
           edge="right"
           label="Resize the chats panel"
         />
-        <div className="space-y-3 p-3">
+        <div className="paper-chat-sidebar-head space-y-3 p-3">
+          <div className="hidden px-1 md:block">
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--subtle)]">
+              Research workspace
+            </p>
+            <h2 className="mt-1 font-serif text-lg font-semibold tracking-tight">
+              Sessions
+            </h2>
+          </div>
           <div className="flex items-center justify-between md:hidden">
             <span className="text-sm font-semibold">Sessions</span>
             <button
@@ -525,7 +541,7 @@ export default function PaperChatPage() {
               <X size={16} />
             </button>
           </div>
-          <button onClick={createNewSession} className="btn btn-primary w-full">
+          <button onClick={createNewSession} className="btn btn-primary paper-chat-new-session w-full">
             <Plus size={15} /> New session
           </button>
           {sessions.length > 5 && (
@@ -564,7 +580,7 @@ export default function PaperChatPage() {
                       setIsSessionPaneOpen(false);
                     }}
                     aria-current={isActive ? "true" : undefined}
-                    className={`flex w-full items-center gap-2.5 rounded-[var(--radius-control)] py-2 pl-3 pr-9 text-left text-[0.8125rem] transition-colors ${
+                    className={`paper-chat-session flex w-full items-center gap-2.5 rounded-[var(--radius-control)] py-2 pl-3 pr-9 text-left text-[0.8125rem] transition-colors ${
                       isActive
                         ? "bg-[var(--accent-soft)] font-medium text-[var(--accent-strong)]"
                         : "text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
@@ -590,7 +606,16 @@ export default function PaperChatPage() {
       {/* Main area */}
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {!activeSessionId ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+          <div className="relative flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+            <button
+              onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+              className="btn btn-secondary paper-chat-theme-toggle absolute right-4 top-4 !gap-1.5 !px-2.5 !py-1.5"
+              title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDarkTheme ? <Sun size={14} /> : <Moon size={14} />}
+              <span>{isDarkTheme ? "Light mode" : "Dark mode"}</span>
+            </button>
             <div className="max-w-md space-y-2">
               <h2 className="font-serif text-2xl font-semibold tracking-tight">
                 Start with a session
@@ -611,17 +636,17 @@ export default function PaperChatPage() {
           <>
             <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
               {/* Header */}
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+              <div className="paper-chat-main-header flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <button
                     onClick={() => setIsSessionPaneOpen((o) => !o)}
-                    className="btn btn-secondary !px-2.5 !py-1.5 md:hidden"
+                    className="btn btn-secondary paper-chat-mobile-toggle !px-2.5 !py-1.5 md:hidden"
                     aria-label="Show sessions"
                   >
                     <MessageSquare size={14} />
                   </button>
                   <div className="min-w-0">
-                    <h2 className="truncate text-sm font-semibold">
+                    <h2 className="truncate text-sm font-semibold tracking-[-0.01em]">
                       {activeTitle}
                     </h2>
                     <p className="truncate text-xs text-[var(--muted)]">
@@ -633,6 +658,15 @@ export default function PaperChatPage() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+                    className="btn btn-secondary paper-chat-theme-toggle !gap-1.5 !px-2.5 !py-1.5"
+                    title={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
+                    aria-label={isDarkTheme ? "Switch to light mode" : "Switch to dark mode"}
+                  >
+                    {isDarkTheme ? <Sun size={14} /> : <Moon size={14} />}
+                    <span className="hidden sm:inline">{isDarkTheme ? "Light" : "Dark"}</span>
+                  </button>
                   {messages.length > 0 && activeView === "chat" && (
                     <button
                       onClick={clearChatHistory}
@@ -763,9 +797,9 @@ export default function PaperChatPage() {
                   )}
 
                   {/* Messages */}
-                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
+                  <div className="paper-chat-transcript min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
                     {messages.length === 0 ? (
-                      <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-8 py-8">
+                      <div className="paper-chat-empty mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-8 py-8">
                         <div className="space-y-2">
                           <h3 className="font-serif text-2xl font-semibold tracking-tight">
                             {documents.length > 0
@@ -784,7 +818,7 @@ export default function PaperChatPage() {
                             return (
                               <li
                                 key={i}
-                                className="border-b border-[var(--border)]"
+                                className="paper-chat-starter border-b border-[var(--border)]"
                               >
                                 <button
                                   onClick={() =>
@@ -818,17 +852,17 @@ export default function PaperChatPage() {
                           return (
                             <article
                               key={i}
-                              className={`group flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                              className={`paper-chat-message group flex flex-col ${isUser ? "paper-chat-message-user items-end" : "paper-chat-message-assistant items-start"}`}
                               aria-label={isUser ? "You" : "ReSector"}
                             >
                               {isUser ? (
-                                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--accent)] px-4 py-2.5 text-[0.9375rem] leading-relaxed text-[var(--accent-contrast)]">
+                                <div className="paper-chat-user-bubble max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--accent)] px-4 py-2.5 text-[0.9375rem] leading-relaxed text-[var(--accent-contrast)]">
                                   {m.content}
                                 </div>
                               ) : (
                                 <div className="w-full">
                                   <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
-                                    <span className="light-logo">
+                                    <span className="light-logo paper-chat-avatar">
                                       <Image
                                         src="/logos/logo-light.png"
                                         alt=""
@@ -836,7 +870,7 @@ export default function PaperChatPage() {
                                         height={20}
                                       />
                                     </span>
-                                    <span className="dark-logo">
+                                    <span className="dark-logo paper-chat-avatar">
                                       <Image
                                         src="/logos/logo-dark.png"
                                         alt=""
@@ -913,8 +947,8 @@ export default function PaperChatPage() {
                   </div>
 
                   {/* Composer */}
-                  <div className="shrink-0 bg-[var(--background)] px-4 pb-4 pt-2 sm:px-8">
-                    <div className="mx-auto max-w-3xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)] transition-colors focus-within:border-[var(--accent)]">
+                  <div className="paper-chat-composer-wrap shrink-0 bg-[var(--background)] px-4 pb-4 pt-2 sm:px-8">
+                    <div className="paper-chat-composer mx-auto max-w-3xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)] transition-colors focus-within:border-[var(--accent)]">
                       <textarea
                         ref={textareaRef}
                         value={input}
@@ -973,14 +1007,14 @@ export default function PaperChatPage() {
             <aside
               aria-label="Papers"
               style={panelStyle(papersPanel.width)}
-              className={`${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
+              className={`paper-chat-panel ${isDocumentPaneOpen ? "max-md:flex" : "max-md:hidden"} flex w-64 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:relative md:w-[var(--panel-w)] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-40 max-md:w-72 max-md:shadow-[var(--shadow-pop)]`}
             >
               <ResizeHandle
                 panel={papersPanel}
                 edge="left"
                 label="Resize the papers panel"
               />
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="paper-chat-sidebar-head flex items-center justify-between px-4 py-3">
                 <h3 className="text-sm font-semibold">
                   Papers{" "}
                   <span className="font-normal text-[var(--muted)]">
@@ -1021,7 +1055,7 @@ export default function PaperChatPage() {
                   documents.map((doc) => (
                     <li
                       key={doc.id}
-                      className="group border-b border-[var(--border)] px-4 py-3"
+                      className="paper-chat-paper group border-b border-[var(--border)] px-4 py-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-2.5">
