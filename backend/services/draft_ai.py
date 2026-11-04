@@ -105,6 +105,29 @@ def suggest_sources(db, session_id: str, dash_id: int, text: str, doc_ids: Optio
     return out
 
 
+# ---------------------------------------------------------------- other drafts as context
+def other_drafts_context(db, dash_id: int, draft_ids: Optional[List[int]], max_chars: int = 6000) -> str:
+    """The text of the author's other drafts on this dashboard, clipped to a budget, for the model to stay
+    consistent with. It is context about the author's own writing, never evidence to cite."""
+    if not draft_ids:
+        return ""
+    rows = (db.query(Draft).filter(Draft.dashboard_id == dash_id, Draft.id.in_(list(draft_ids)))
+            .order_by(Draft.updated_at.desc()).all())
+    rows = [r for r in rows if (r.content or "").strip()]
+    if not rows:
+        return ""
+    share = max(600, max_chars // len(rows))
+    blocks = []
+    for r in rows:
+        text = re.sub(r"\[@[^\]]+\]", "", r.content or "").strip()
+        blocks.append(f"### {r.title}\n" + truncate_text(text, share // 4 if share // 4 > 150 else 150))
+    return "\n\n".join(blocks)
+
+
+OTHER_DRAFTS_NOTE = ("THE AUTHOR'S OTHER DRAFTS (their own earlier writing; use it to stay consistent in terms, "
+                     "claims and tone, and to avoid repeating it. It is not evidence: never cite it)")
+
+
 # ---------------------------------------------------------------- autopilot
 OUTLINE_SYSTEM = (
     "You plan a section-by-section outline for a piece of academic writing, based on what the author's "
@@ -132,7 +155,7 @@ def estimate_autopilot(sections: int, budget: int, words: int = 220) -> Dict[str
 
 
 async def make_outline(db, runner: LLMRunner, session_id: str, dash_id: int, instruction: str,
-                       doc_ids: Optional[List[int]]) -> List[Dict[str, str]]:
+                       doc_ids: Optional[List[int]], draft_ids: Optional[List[int]] = None) -> List[Dict[str, str]]:
     docs = completed_docs(db, session_id, doc_ids or None)
     if not docs:
         raise ValueError("Add a paper to this dashboard and wait for it to finish reading first.")
@@ -142,6 +165,9 @@ async def make_outline(db, runner: LLMRunner, session_id: str, dash_id: int, ins
         lines += ["", "AUTHOR'S CLAIMS", *[f"- {c}" for c in ctx["claims"]]]
     if ctx["links"]:
         lines += ["", "LINKS THE AUTHOR DREW", *[f"- {x}" for x in ctx["links"]]]
+    other = other_drafts_context(db, dash_id, draft_ids, int(runner.budget() * 0.6))
+    if other:
+        lines += ["", OTHER_DRAFTS_NOTE, other]
     lines += ["", "WHAT THE AUTHOR WANTS TO WRITE", instruction.strip() or "A literature review of these papers"]
     body = truncate_text("\n".join(lines), int(runner.budget() * 0.7))
     raw = await runner.run([SystemMessage(content=OUTLINE_SYSTEM), HumanMessage(content=body)])
@@ -152,7 +178,8 @@ async def make_outline(db, runner: LLMRunner, session_id: str, dash_id: int, ins
 
 
 async def write_section(db, runner: LLMRunner, session_id: str, dash_id: int, heading: str, goal: str,
-                        instruction: str, doc_ids: Optional[List[int]], draft_text: str, words: int = 220) -> Dict[str, Any]:
+                        instruction: str, doc_ids: Optional[List[int]], draft_text: str, words: int = 220,
+                        draft_ids: Optional[List[int]] = None) -> Dict[str, Any]:
     docs = completed_docs(db, session_id, doc_ids or None)
     if not docs:
         raise ValueError("Add a paper to this dashboard and wait for it to finish reading first.")
@@ -187,6 +214,9 @@ async def write_section(db, runner: LLMRunner, session_id: str, dash_id: int, he
     prior = re.sub(r"\[@[^\]]+\]", "", draft_text or "").strip()
     if prior:
         parts.append("DRAFT SO FAR (do not repeat)\n" + truncate_text(prior, int(budget * 0.12), keep_tail=0.8))
+    other = other_drafts_context(db, dash_id, draft_ids, int(budget * 0.4))
+    if other:
+        parts.append(f"{OTHER_DRAFTS_NOTE}\n{other}")
     task = f"SECTION: {heading}" + (f"\nGOAL: {goal}" if goal else "") + (f"\nNOTES FROM THE AUTHOR: {instruction}" if instruction else "")
     parts.append(task)
     raw = await runner.run([SystemMessage(content=SECTION_SYSTEM.format(words=words)),

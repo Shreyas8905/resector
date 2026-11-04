@@ -216,7 +216,8 @@ def _recent_history(db, session_id: str, limit: int = 6) -> List[Any]:
 
 
 async def ask(db, runner: LLMRunner, session_id: str, question: str,
-              doc_ids: Optional[List[int]], excerpt_ids: Optional[List[int]], dashboard_id: int) -> dict:
+              doc_ids: Optional[List[int]], excerpt_ids: Optional[List[int]], dashboard_id: int,
+              draft_ids: Optional[List[int]] = None) -> dict:
     docs = completed_docs(db, session_id, doc_ids or None)
     if not docs:
         raise ValueError("Add a paper to this dashboard and wait for it to finish reading, then ask again.")
@@ -244,7 +245,12 @@ async def ask(db, runner: LLMRunner, session_id: str, question: str,
     messages = [SystemMessage(content=ASK_SYSTEM)]
     if history:
         messages += fit_messages(history, history_budget)
-    messages.append(HumanMessage(content=f"PASSAGES\n{context}\n\nQUESTION\n{question}"))
+    own_block = ""
+    if draft_ids:                                # imported here so a plain question never loads the drafts module
+        from .draft_ai import OTHER_DRAFTS_NOTE, other_drafts_context
+        own = other_drafts_context(db, dashboard_id, draft_ids, int(budget * 0.25))
+        own_block = f"{OTHER_DRAFTS_NOTE}\n{own}\n\n" if own else ""
+    messages.append(HumanMessage(content=f"PASSAGES\n{context}\n\n{own_block}QUESTION\n{question}"))
     raw = await runner.run(messages)
 
     valid = {p["n"] for p in included}

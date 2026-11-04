@@ -59,6 +59,7 @@ class AskIn(AIConfig):
     text: str
     document_ids: Optional[List[int]] = None
     excerpt_ids: Optional[List[int]] = None
+    draft_ids: Optional[List[int]] = None               # drafts to read for context (the author's own writing)
 
 
 @router.post("/dashboards/{dash_id}/ask")
@@ -69,7 +70,7 @@ async def ask(dash_id: str, body: AskIn, db=Depends(get_db)):
         raise HTTPException(status_code=422, detail="Type a question first.")
     runner = _runner(body)
     try:
-        result = await ai.ask(db, runner, d.session_id, question, body.document_ids, body.excerpt_ids, d.id)
+        result = await ai.ask(db, runner, d.session_id, question, body.document_ids, body.excerpt_ids, d.id, body.draft_ids)
         db.add(ChatMessage(session_id=d.session_id, role=MessageRole.USER, content=question))
         db.add(ChatMessage(session_id=d.session_id, role=MessageRole.ASSISTANT, content=result["answer"],
                            citations=json.dumps({"cites": result["cites"], "scope": result.get("scope", [])})))

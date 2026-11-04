@@ -212,6 +212,7 @@ async def suggest(dash_id: str, body: SuggestIn, db=Depends(get_db)):
 class OutlineIn(AIConfig):
     instruction: str = ""
     document_ids: Optional[List[int]] = None
+    context_draft_ids: Optional[List[int]] = None       # the author's other drafts, for consistency
 
 
 @router.post("/dashboards/{dash_id}/drafts/autopilot/outline")
@@ -219,7 +220,7 @@ async def autopilot_outline(dash_id: str, body: OutlineIn, db=Depends(get_db)):
     d = _dash(db, dash_id)
     runner = _runner(body)
     try:
-        sections = await draft_ai.make_outline(db, runner, d.session_id, d.id, clean_text(body.instruction, 1200), body.document_ids)
+        sections = await draft_ai.make_outline(db, runner, d.session_id, d.id, clean_text(body.instruction, 1200), body.document_ids, body.context_draft_ids)
         _record(db, d, "draft_outline", runner)
         return {"sections": sections, "usage": runner.meter.as_dict()}
     except Exception as e:
@@ -233,6 +234,7 @@ class SectionIn(AIConfig):
     document_ids: Optional[List[int]] = None
     draft_text: str = ""
     words: int = 220
+    context_draft_ids: Optional[List[int]] = None
 
 
 @router.post("/dashboards/{dash_id}/drafts/autopilot/section")
@@ -244,7 +246,7 @@ async def autopilot_section(dash_id: str, body: SectionIn, db=Depends(get_db)):
     runner = _runner(body)
     try:
         res = await draft_ai.write_section(db, runner, d.session_id, d.id, heading, clean_text(body.goal, 300),
-                                           clean_text(body.instruction, 800), body.document_ids, body.draft_text[-20000:], body.words)
+                                           clean_text(body.instruction, 800), body.document_ids, body.draft_text[-20000:], body.words, body.context_draft_ids)
         _record(db, d, "draft_section", runner)
         return res
     except Exception as e:
