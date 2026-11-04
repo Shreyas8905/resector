@@ -30,7 +30,7 @@ export default function DocumentPicker({
         {file ? "Change document" : "Upload a PDF instead"}
       </button>
       {file && (
-        <span className="flex max-w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-muted)] py-1.5 pl-2.5 pr-1.5 text-[13px]">
+        <span className="flex max-w-full items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-muted)] py-1.5 pl-2.5 pr-1.5 text-[0.8125rem]">
           <FileText size={14} className="shrink-0 text-[var(--accent)]" />
           <span className="truncate">{file.name}</span>
           <button

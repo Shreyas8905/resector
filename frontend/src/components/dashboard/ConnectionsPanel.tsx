@@ -13,7 +13,8 @@ const VERDICT_COLOR: Record<string, string> = {
   supported: "#16a34a", partly: "#d97706", contradicted: "#dc2626", not_covered: "#64748b",
 };
 
-export default function ConnectionsPanel({ dashboardId, agent, paperCount, claimCount, nameOf, beforeRun, onStarted, onFocus, onAccept, onDismiss, onCite, onClose }: {
+export default function ConnectionsPanel({ dashboardId, agent, paperCount, claimCount, nameOf, beforeRun, onStarted, onFocus, onAccept, onDismiss, onCite, onClose, tabs }: {
+  tabs?: React.ReactNode;
   dashboardId: string; agent: AgentState | null; paperCount: number; claimCount: number;
   nameOf: (kind: string, ref: string) => string; beforeRun: () => Promise<void>;
   onStarted: () => void; onFocus: (s: Suggestion) => void; onAccept: (s: Suggestion) => void;
@@ -50,8 +51,8 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
   return (
     <aside style={panelStyle(panel.width)} className="anim-slide-in relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
       <ResizeHandle panel={panel} edge="left" label="Resize the Connections panel" />
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-        <span className="text-sm font-semibold">Connections</span>
+      <div className="flex items-center justify-between gap-1 border-b border-[var(--border)] px-4 py-3">
+        {tabs ?? <span className="text-sm font-semibold">Connections</span>}
         <button className="icon-btn !h-8 !w-8" onClick={onClose} aria-label="Close"><X size={15} /></button>
       </div>
 
@@ -79,9 +80,9 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
               <button className="btn btn-primary w-full" disabled={starting || paperCount < 2 || noKey} onClick={() => start("wire")}>
                 {starting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Find connections
               </button>
-              {paperCount < 2 && <p className="text-[11px] text-[var(--muted)]">Add at least two papers that have finished reading.</p>}
-              {est && est.calls > 0 && <p className="text-[11px] text-[var(--subtle)]">About {est.calls} checks, roughly {formatTokens(est.tokens)} tokens from your AI provider.</p>}
-              {est && est.calls === 0 && paperCount >= 2 && <p className="text-[11px] text-[var(--subtle)]">Every pair has already been checked. <button className="underline" onClick={() => start("wire", true)}>Check again</button></p>}
+              {paperCount < 2 && <p className="text-[0.75rem] text-[var(--muted)]">Add at least two papers that have finished reading.</p>}
+              {est && est.calls > 0 && <p className="text-[0.75rem] text-[var(--subtle)]">About {est.calls} checks, roughly {formatTokens(est.tokens)} tokens from your AI provider.</p>}
+              {est && est.calls === 0 && paperCount >= 2 && <p className="text-[0.75rem] text-[var(--subtle)]">Every pair has already been checked. <button className="underline" onClick={() => start("wire", true)}>Check again</button></p>}
             </>
           )}
           {error != null && <ErrorNotice error={error} />}
@@ -102,8 +103,8 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
                     <span className="mt-0.5 line-clamp-2 block">{s.summary}</span>
                   </button>
                   <div className="mt-1.5 flex gap-1">
-                    <button className="btn btn-secondary !px-2 !py-0.5 !text-[11px]" onClick={() => onAccept(s)}>Add link</button>
-                    <button className="btn btn-quiet !px-2 !py-0.5 !text-[11px]" onClick={() => onDismiss(s)}>Dismiss</button>
+                    <button className="btn btn-secondary !px-2 !py-0.5 !text-[0.75rem]" onClick={() => onAccept(s)}>Add link</button>
+                    <button className="btn btn-quiet !px-2 !py-0.5 !text-[0.75rem]" onClick={() => onDismiss(s)}>Dismiss</button>
                   </div>
                 </li>
               );
@@ -118,7 +119,7 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
           <button className="btn btn-secondary w-full" disabled={!!running || starting || claimCount === 0 || paperCount === 0 || noKey} onClick={() => start("gaps")}>
             <Telescope size={14} /> Check my claims
           </button>
-          {claimCount === 0 && <p className="text-[11px] text-[var(--muted)]">Add a “My research” card first.</p>}
+          {claimCount === 0 && <p className="text-[0.75rem] text-[var(--muted)]">Add a “My research” card first.</p>}
           {(agent?.gaps?.result ?? []).map((g) => (
             <div key={g.node_id} className="rounded-lg border border-[var(--border)] p-2.5 text-xs">
               <p className="font-medium">“{g.claim.length > 120 ? g.claim.slice(0, 120) + "…" : g.claim}”</p>
@@ -145,7 +146,7 @@ export default function ConnectionsPanel({ dashboardId, agent, paperCount, claim
           {(agent?.runs ?? []).length === 0 && <p className="text-xs text-[var(--muted)]">Nothing has run yet.</p>}
           <ul className="space-y-1">
             {(agent?.runs ?? []).map((r) => (
-              <li key={r.id} className="rounded-md bg-[var(--surface-muted)] px-2 py-1.5 text-[11px] text-[var(--muted)]">
+              <li key={r.id} className="rounded-md bg-[var(--surface-muted)] px-2 py-1.5 text-[0.75rem] text-[var(--muted)]">
                 <span className="font-medium text-[var(--foreground)]">{r.kind === "wire" ? "Find connections" : "Check claims"}</span> · {r.status === "done" ? "finished" : r.status === "cancelled" ? "stopped" : r.status === "failed" ? "failed" : "running"} · {new Date(r.created_at).toLocaleString()}
                 {r.message && <span className="block">{r.message}</span>}
                 {(r.tokens_in + r.tokens_out) > 0 && <span className="block">{formatTokens(r.tokens_in + r.tokens_out)} tokens</span>}

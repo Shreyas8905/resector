@@ -13,52 +13,102 @@
 }
 
 /* ------------------------------------------------------------------ tokens
-   Palette is unchanged: it comes from the logo (periwinkle braces, navy lens, ink). */
+   Brand: periwinkle braces + navy lens from the logo. The brand colour carries the whole app
+   (navigation, selection, primary buttons, links). Each tool also has its own colour so it is
+   recognisable at a glance. Status colours (success / warning / danger) are kept separate.
+   Dark mode is true black (#000); light mode is polar white (#fff). Depth comes from thin
+   borders and slightly lighter surfaces, not from shadows. */
 :root {
-  --background: #f5f7fb;
-  --foreground: #162033;
+  --background: #ffffff;
+  --foreground: #0b1220;
   --surface: #ffffff;
-  --surface-muted: #eef2f8;
-  --surface-strong: #e3e9f2;
-  --border: #d7deea;
-  --border-strong: #b9c5d6;
-  --muted: #667085;
-  --subtle: #8793a6;
-  --accent: #315b9a;
-  --accent-strong: #24467a;
+  --surface-muted: #f4f6fa;
+  --surface-strong: #e8edf4;
+  --border: #e1e6ee;
+  --border-strong: #c2cbda;
+  --muted: #5b6678;
+  --subtle: #6f7a8c;
+  --accent: #2d5ba6;
+  --accent-strong: #204a8d;
   --accent-contrast: #ffffff;
-  --danger: #bd4b4b;
-  --success: #287d58;
-  --focus: #527abd;
-  --shadow: 0 18px 50px rgb(27 52 91 / 0.08);
+  --brand: #6f95d8;
+  --danger: #c0392b;
+  --success: #1f7a4f;
+  --warning: #a35f00;
+  --focus: #2d5ba6;
+  --shadow: 0 18px 50px rgb(11 18 32 / 0.06);
 
-  /* derived from the palette above */
+  /* one colour per tool */
+  --tool-chat: #0f766e;
+  --tool-dashboards: #4547d6;
+  --tool-graph: #0369a1;
+  --tool-sifter: #a16207;
+  --tool-critique: #be123c;
+  --tool-jargon: #7c3aed;
+  --tool-history: #475569;
+  /* inside a dashboard */
+  --tool-draft: var(--tool-dashboards);
+  --tool-ask: #7c3aed;
+  --tool-links: #0e7490;
+  --tool-check: #be123c;
+  --tool-auto: #c2410c;
+  --tool-notes: #a16207;
+  --tool-papers: #2d5ba6;
+
+  /* derived */
   --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--surface));
-  --accent-line: color-mix(in srgb, var(--accent) 28%, var(--border));
-  --shadow-pop: 0 1px 2px rgb(27 52 91 / 0.06), 0 12px 32px rgb(27 52 91 / 0.12);
+  --accent-line: color-mix(in srgb, var(--accent) 30%, var(--border));
+  --shadow-pop: 0 1px 2px rgb(11 18 32 / 0.06), 0 12px 32px rgb(11 18 32 / 0.12);
   --radius-control: 0.5rem;
-  --radius-panel: 0.875rem;
+  --radius-panel: 0.75rem;
 }
 
 :root[data-theme="dark"] {
-  --background: #0e1624;
-  --foreground: #e8edf6;
-  --surface: #151f30;
-  --surface-muted: #1b283c;
-  --surface-strong: #25344b;
-  --border: #2b3a51;
-  --border-strong: #40536f;
-  --muted: #9aa8ba;
-  --subtle: #718198;
-  --accent: #6e95d6;
-  --accent-strong: #8aace7;
-  --accent-contrast: #0c1625;
-  --danger: #e08383;
-  --success: #72c39a;
-  --focus: #86a9e2;
-  --shadow: 0 18px 50px rgb(0 0 0 / 0.22);
-  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
+  --background: #000000;
+  --foreground: #f1f3f7;
+  --surface: #0b0c0e;
+  --surface-muted: #131519;
+  --surface-strong: #1e2127;
+  --border: #25282f;
+  --border-strong: #3b404b;
+  --muted: #a5adbb;
+  --subtle: #8a93a3;
+  --accent: #7fa4e8;
+  --accent-strong: #a3c0f2;
+  --accent-contrast: #000000;
+  --brand: #7fa4e8;
+  --danger: #ef8a7d;
+  --success: #6fd0a0;
+  --warning: #f0b45a;
+  --focus: #9dbcf2;
+  --shadow: 0 18px 50px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px rgb(0 0 0 / 0.7);
+
+  --tool-chat: #4fd1c5;
+  --tool-dashboards: #9aa0ff;
+  --tool-graph: #5cc2f2;
+  --tool-sifter: #f2c14e;
+  --tool-critique: #ff8aa5;
+  --tool-jargon: #c0a4ff;
+  --tool-history: #a6b1c3;
+  --tool-ask: #c0a4ff;
+  --tool-links: #4cc9e0;
+  --tool-check: #ff8aa5;
+  --tool-auto: #ff9b5e;
+  --tool-notes: #f2c14e;
+  --tool-papers: #7fa4e8;
   color-scheme: dark;
+}
+
+/* Text size, chosen in the Appearance menu. Everything sized in rem scales with it. */
+html {
+  font-size: 16px;
+}
+html[data-text="large"] {
+  font-size: 18px;
+}
+html[data-text="xlarge"] {
+  font-size: 20px;
 }
 
 * {
@@ -74,7 +124,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -151,6 +201,7 @@ a:focus-visible,
 [role="button"]:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @layer components {
@@ -162,8 +213,8 @@ a:focus-visible,
   gap: 0.4rem;
   border-radius: var(--radius-control);
   border: 1px solid transparent;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8125rem;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25;
   white-space: nowrap;
@@ -172,6 +223,19 @@ a:focus-visible,
     border-color 120ms ease,
     color 120ms ease,
     transform 120ms ease;
+}
+
+/* Comfortable click targets by default; dense toolbars override padding with !py-* and stay compact. */
+.btn:not([class*="!py"]) {
+  min-height: 2.5rem;
+}
+
+@media (pointer: coarse) {
+  .btn:not([class*="!py"]),
+  .icon-btn {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
 }
 
 .btn:disabled {
@@ -225,8 +289,8 @@ a:focus-visible,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2.25rem;
-  width: 2.25rem;
+  height: 2.5rem;
+  width: 2.5rem;
   border-radius: var(--radius-control);
   color: var(--muted);
   transition:
@@ -244,8 +308,8 @@ a:focus-visible,
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--surface);
-  padding: 0.55rem 0.75rem;
-  font-size: 0.875rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9375rem;
   color: var(--foreground);
   transition:
     border-color 120ms ease,
@@ -269,7 +333,7 @@ a:focus-visible,
 .field-label {
   display: block;
   margin-bottom: 0.35rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--foreground);
 }
@@ -280,6 +344,67 @@ a:focus-visible,
   background: var(--surface);
 }
 
+}
+
+
+/* ---------------------------------------------------------- new building blocks */
+/* A tool's identity: set --t on the element, e.g. style={{ "--t": "var(--tool-chat)" }}. */
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--t, var(--accent)) 14%, transparent);
+  color: var(--t, var(--accent));
+}
+
+/* Segmented control (view switchers) */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 2px;
+  background: var(--surface-muted);
+}
+.seg > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.seg > button:hover {
+  color: var(--foreground);
+}
+.seg > button[aria-pressed="true"],
+.seg > button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--border);
+}
+:root[data-theme="dark"] .seg > button[aria-pressed="true"],
+:root[data-theme="dark"] .seg > button[aria-selected="true"] {
+  background: var(--surface-strong);
+  box-shadow: none;
+}
+
+.kbd {
+  display: inline-block;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  padding: 0 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+  background: var(--surface-muted);
 }
 
 /* One quiet entrance for anything that appears in response to a click. */
@@ -597,3 +722,61 @@ a:focus-visible,
   max-height: 24rem;
 }
 }
+
+/* ------------------------------------------------------------------
+   Calm layer (Figma-inspired): more air, softer edges, gentle motion.
+------------------------------------------------------------------- */
+:root { --radius-control: 0.625rem; --radius-panel: 1rem; --radius-float: 1.25rem; }
+
+@keyframes rs-page {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.anim-page { animation: rs-page 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@keyframes rs-shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+.skeleton {
+  border-radius: var(--radius-panel);
+  background: linear-gradient(100deg, var(--surface-muted) 30%, var(--surface-strong) 50%, var(--surface-muted) 70%);
+  background-size: 200% 100%;
+  animation: rs-shimmer 1.4s linear infinite;
+}
+
+/* A floating surface: toolbars and panels that sit on top of the work. */
+.float {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-pop);
+}
+
+/* A quiet card for choices; lifts slightly on hover. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.card:hover { border-color: var(--accent-line); box-shadow: var(--shadow-pop); transform: translateY(-1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-page, .skeleton, .card { animation: none; transition: none; }
+  .card:hover { transform: none; }
+}
+
+/* The canvas appears once it is laid out, instead of jumping into place. */
+.canvas-reveal { transition: opacity 240ms ease; }
+
+/* Canvas furniture in the same soft style as the rest (draw.io / Figma feel). */
+.react-flow__controls {
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  overflow: hidden;
+  box-shadow: var(--shadow-pop);
+  margin: 1.25rem;
+}
+.react-flow__controls-button { width: 2.25rem; height: 2.25rem; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--muted); }
+.react-flow__controls-button:hover { background: var(--surface-muted); color: var(--foreground); }
+.react-flow__controls-button svg { fill: currentColor; }
+.react-flow__background pattern circle { fill: var(--border-strong); opacity: 0.55; }
+.react-flow__attribution { opacity: 0.5; }

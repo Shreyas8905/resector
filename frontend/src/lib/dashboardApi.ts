@@ -122,8 +122,8 @@ export const dashboardApi = {
   },
 
   // ---- Stage 2: grounded AI
-  ask: (id: string, text: string, document_ids?: number[], excerpt_ids?: number[]) =>
-    req<AskResult>(`/dashboards/${id}/ask`, json("POST", { ...aiConfig(), text, document_ids, excerpt_ids })),
+  ask: (id: string, text: string, document_ids?: number[], excerpt_ids?: number[], draft_ids?: number[]) =>
+    req<AskResult>(`/dashboards/${id}/ask`, json("POST", { ...aiConfig(), text, document_ids, excerpt_ids, draft_ids })),
   chat: (id: string) => req<ChatMsg[]>(`/dashboards/${id}/chat`),
   clearChat: (id: string) => req<unknown>(`/dashboards/${id}/chat`, { method: "DELETE" }),
   summarize: (id: string, document_id: number) =>
@@ -165,9 +165,9 @@ export const dashboardApi = {
   deleteVersion: (id: string, draftId: number, vid: number) => req<unknown>(`/dashboards/${id}/drafts/${draftId}/versions/${vid}`, { method: "DELETE" }),
   suggestSources: (id: string, text: string, document_ids?: number[]) =>
     req<{ sources: SourceSuggestion[] }>(`/dashboards/${id}/drafts/suggest`, json("POST", { text, document_ids })),
-  outline: (id: string, instruction: string, document_ids?: number[]) =>
-    req<{ sections: OutlineSection[]; usage: Usage }>(`/dashboards/${id}/drafts/autopilot/outline`, json("POST", { ...aiConfig(), instruction, document_ids })),
-  writeSection: (id: string, body: { heading: string; goal: string; instruction: string; document_ids?: number[]; draft_text: string; words: number }) =>
+  outline: (id: string, instruction: string, document_ids?: number[], context_draft_ids?: number[]) =>
+    req<{ sections: OutlineSection[]; usage: Usage }>(`/dashboards/${id}/drafts/autopilot/outline`, json("POST", { ...aiConfig(), instruction, document_ids, context_draft_ids })),
+  writeSection: (id: string, body: { heading: string; goal: string; instruction: string; document_ids?: number[]; draft_text: string; words: number; context_draft_ids?: number[] }) =>
     req<SectionResult>(`/dashboards/${id}/drafts/autopilot/section`, json("POST", { ...aiConfig(), ...body })),
   autopilotEstimate: (id: string, sections: number, words: number) => {
     const c = aiConfig();

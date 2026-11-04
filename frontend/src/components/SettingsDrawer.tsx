@@ -58,7 +58,7 @@ function loadConfig(): Config {
 
 const inputClass = "field";
 
-export default function SettingsDrawer() {
+export default function SettingsDrawer({ compact = false, stacked = false }: { compact?: boolean; stacked?: boolean } = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<Config>(loadConfig);
   const [isValidating, setIsValidating] = useState(false);
@@ -212,11 +212,12 @@ export default function SettingsDrawer() {
           setConfig(loadConfig());
           setIsOpen(true);
         }}
-        className="btn btn-quiet !text-[13px]"
-        title="Settings"
+        className={stacked ? "flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[0.75rem] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]" : `flex w-full items-center gap-3 rounded-[var(--radius-control)] py-2 text-left text-[0.9375rem] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] ${compact ? "justify-center px-0" : "px-3"}`}
+        title="AI settings: choose your AI service and paste your key"
+        aria-label={compact ? "Settings" : undefined}
       >
-        <Settings size={16} />
-        <span className="hidden sm:inline">Settings</span>
+        <Settings size={stacked ? 22 : 18} className="shrink-0" />
+        {stacked ? <span>AI setup</span> : !compact && <span className="truncate">AI settings</span>}
       </button>
 
       {isOpen && (

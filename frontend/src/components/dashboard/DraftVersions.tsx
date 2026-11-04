@@ -57,7 +57,7 @@ export default function DraftVersions({ dashboardId, draftId, content, refreshKe
       <button className="btn btn-secondary w-full !py-1.5 !text-xs" onClick={save} disabled={busy}>
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save a version now
       </button>
-      <p className="text-[11px] text-[var(--muted)]">Versions are also kept automatically while you write, and before autopilot or a restore.</p>
+      <p className="text-[0.75rem] text-[var(--muted)]">Versions are also kept automatically while you write, and before autopilot or a restore.</p>
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       {list.length === 0 && <p className="flex items-center gap-1.5 text-xs text-[var(--muted)]"><History size={13} /> No earlier versions yet.</p>}
       <ul className="space-y-1.5">
@@ -65,20 +65,20 @@ export default function DraftVersions({ dashboardId, draftId, content, refreshKe
           <li key={v.id} className={`rounded-lg border p-2 ${open?.id === v.id ? "border-[var(--accent)]" : "border-[var(--border)]"}`}>
             <button className="block w-full text-left" onClick={() => view(v)}>
               <span className="block text-xs font-medium">{v.label && v.kind !== "auto" ? v.label : KIND[v.kind] ?? v.kind}</span>
-              <span className="block text-[11px] text-[var(--muted)]">{new Date(v.created_at).toLocaleString()} · {v.words} words</span>
+              <span className="block text-[0.75rem] text-[var(--muted)]">{new Date(v.created_at).toLocaleString()} · {v.words} words</span>
             </button>
             {open?.id === v.id && (
               <div className="mt-2">
-                <p className="mb-1 text-[11px] text-[var(--muted)]">Changes since this version: <span className="text-[var(--success)]">+{sum.added} lines added</span> · <span className="text-[var(--danger)]">−{sum.removed} lines removed</span></p>
-                <div className="max-h-56 overflow-auto rounded-md border border-[var(--border)] bg-[var(--surface-muted)] p-1.5 font-mono text-[11px] leading-snug">
+                <p className="mb-1 text-[0.75rem] text-[var(--muted)]">Changes since this version: <span className="text-[var(--success)]">+{sum.added} lines added</span> · <span className="text-[var(--danger)]">−{sum.removed} lines removed</span></p>
+                <div className="max-h-56 overflow-auto rounded-md border border-[var(--border)] bg-[var(--surface-muted)] p-1.5 font-mono text-[0.75rem] leading-snug">
                   {ops.every((o) => o.type === "same") ? <p className="p-1 text-[var(--muted)]">Identical to your current text.</p> :
                     ops.map((o, i) => o.type === "same"
                       ? <div key={i} className="truncate px-1 text-[var(--subtle)]">{o.text || " "}</div>
                       : <div key={i} className={`whitespace-pre-wrap px-1 ${o.type === "add" ? "bg-[color-mix(in_srgb,var(--success)_14%,transparent)]" : "bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]"}`}>{o.type === "add" ? "+ " : "− "}{o.text || " "}</div>)}
                 </div>
                 <div className="mt-2 flex gap-1.5">
-                  <button className="btn btn-primary !px-2 !py-1 !text-[11px]" onClick={() => restore(v)} disabled={busy}><RotateCcw size={11} /> Restore</button>
-                  <button className="btn btn-quiet !px-2 !py-1 !text-[11px]" onClick={() => remove(v)}><Trash2 size={11} /> Delete</button>
+                  <button className="btn btn-primary !px-2 !py-1 !text-[0.75rem]" onClick={() => restore(v)} disabled={busy}><RotateCcw size={11} /> Restore</button>
+                  <button className="btn btn-quiet !px-2 !py-1 !text-[0.75rem]" onClick={() => remove(v)}><Trash2 size={11} /> Delete</button>
                 </div>
               </div>
             )}

@@ -7,8 +7,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  ArrowLeft, Check, Download, FilePlus2, Frame, Gauge, Library, Loader2, MessageSquare, Redo2, Search,
-  LayoutGrid, Link2, Maximize2, Minimize2, PenLine, PanelRightClose, PanelRightOpen, Plus, Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
+  ArrowLeft, Check, Download, FilePlus2, Frame, Gauge, Library, Loader2, Redo2, Search,
+  Copy, LayoutGrid, MoreHorizontal, Maximize2, Minimize2, PanelRightClose, PanelRightOpen, Plus, Sparkles, StickyNote, Table2, Target, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import {
   aiConfig, dashboardApi, type Cite, type CommentInfo, type DashboardFull, type DocInfo, type ExcerptInfo,
@@ -24,6 +24,7 @@ import AskPanel from "./AskPanel";
 import CompareDialog from "./CompareDialog";
 import ConnectionsPanel from "./ConnectionsPanel";
 import DraftView from "./DraftView";
+import DockTabs, { type DockTab } from "./DockTabs";
 import MatrixView from "./MatrixView";
 import SuggestionCard from "./SuggestionCard";
 import type { Rect } from "@/lib/rects";
@@ -107,6 +108,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const [agent, setAgent] = useState<AgentState | null>(null);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [view, setView] = useState<"canvas" | "matrix" | "draft">("canvas");
+  const [draftContextIds, setDraftContextIds] = useState<number[]>([]);
   const [draftMounted, setDraftMounted] = useState(false);          // keep the editor alive once opened
   const [draftInsert, setDraftInsert] = useState<{ text: string; nonce: number } | null>(null);
   const [ghostId, setGhostId] = useState<number | null>(null);
@@ -117,6 +119,8 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   const fileInput = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   // Layout preferences: hide the add-tools bar, collapse the side panels, or both ("focus").
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [toolsHidden, setToolsHidden] = useState(false);
   const [panelsHidden, setPanelsHidden] = useState(false);
   useEffect(() => {
@@ -629,65 +633,90 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   if (loadError) return (
     <div className="p-8 text-sm"><p className="text-[var(--danger)]">{loadError}</p><button onClick={onBack} className="mt-3 underline">Back to dashboards</button></div>
   );
-  if (!dash) return <div className="flex items-center gap-2 p-8 text-sm text-[var(--muted)]"><Loader2 size={15} className="animate-spin" /> Opening dashboard…</div>;
+  if (!dash) return (
+    <div className="flex h-full flex-col" role="status" aria-label="Opening your dashboard">
+      <div className="flex h-14 items-center gap-3 border-b border-[var(--border)] px-4"><div className="skeleton h-7 w-48" /><div className="skeleton mx-auto h-8 w-56" /><div className="skeleton h-8 w-28" /></div>
+      <div className="flex-1 p-10"><div className="skeleton h-full w-full opacity-50" /></div>
+    </div>
+  );
 
   const readerDoc = reader ? documents.find((d) => d.id === reader.documentId) : null;
   const tb = "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-40 disabled:hover:bg-transparent";
 
+  const pendingLinks = (agent?.suggestions ?? []).filter((x) => x.status === "pending").length;
+  const openComments = comments.filter((c) => !c.resolved).length;
+  const dockActive: DockTab = connectionsOpen ? "links" : commentsOpen ? "comments" : "ask";
+  const pickDock = (t: DockTab) => { setAskOpen(t === "ask"); setConnectionsOpen(t === "links"); setCommentsOpen(t === "comments"); };
+  const closeDock = () => { setAskOpen(false); setConnectionsOpen(false); setCommentsOpen(false); };
+  const dockTabs = <DockTabs active={dockActive} onPick={pickDock} pendingLinks={pendingLinks} openComments={openComments} />;
+
   return (
     <CanvasContext.Provider value={ctx}>
       <div className="flex h-full min-h-0 flex-col" onKeyDown={onKeyDown}>
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-[var(--border)] bg-[var(--surface)] px-2 py-1">
-          <button onClick={onBack} className={tb} title="All dashboards"><ArrowLeft size={14} /><span className="hidden xl:inline">Dashboards</span></button>
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4">
+          <button onClick={onBack} className={tb} title="Back to all dashboards" aria-label="Back to all dashboards"><ArrowLeft size={16} /></button>
           <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={renameDashboard}
-            aria-label="Dashboard name" className="min-w-0 max-w-[14rem] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-serif text-sm font-semibold outline-none hover:border-[var(--border)] focus:border-[var(--accent)]" />
-          <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
-            {saveState === "saving" && <><Loader2 size={12} className="animate-spin" /><span className="hidden 2xl:inline">Saving…</span></>}
-            {saveState === "saved" && <span title="Saved"><Check size={12} /></span>}
+            aria-label="Dashboard name" className="min-w-0 max-w-[16rem] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 font-serif text-base font-semibold outline-none hover:border-[var(--border)] focus:border-[var(--accent)]" />
+          <span className="flex items-center text-xs text-[var(--muted)]" aria-live="polite">
+            {saveState === "saving" && <Loader2 size={13} className="animate-spin" aria-label="Saving" />}
+            {saveState === "saved" && <span title="All changes saved"><Check size={13} /></span>}
             {saveState === "error" && <span className="text-[var(--danger)]">Not saved. Retrying on your next change.</span>}
           </span>
-          <div className="ml-auto flex flex-wrap items-center gap-0.5">
-            <div className="relative">
-              <Search size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
+
+          <div className="seg mx-auto !p-1" role="group" aria-label="View">
+            <button onClick={() => setView("canvas")} aria-pressed={view === "canvas"}>Board</button>
+            <button onClick={() => setView("matrix")} aria-pressed={view === "matrix"}>Compare table</button>
+            <button onClick={() => { setDraftMounted(true); setView("draft"); }} aria-pressed={view === "draft"}>Write</button>
+          </div>
+
+          {/* The Write view puts its own controls here, so it needs no header row of its own. */}
+          <div id="dash-header-slot" className="flex items-center gap-1 empty:hidden" />
+
+          {view === "canvas" && (
+            <div className="relative hidden sm:block">
+              <Search size={14} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--subtle)]" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && jumpToHits()}
-                placeholder="Find on canvas" aria-label="Find on canvas" className="w-28 rounded-md border border-[var(--border)] bg-[var(--surface)] py-1 pl-7 pr-2 text-xs outline-none transition-[width] focus:w-44 focus:border-[var(--accent)]" />
+                placeholder="Find on canvas" aria-label="Find on canvas" className="w-32 rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-7 pr-2 text-sm outline-none transition-[width] focus:w-48 focus:border-[var(--accent)]" />
             </div>
-            <button className={tb} onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
-            <button className={tb} onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Shift+Z)"><Redo2 size={14} /></button>
-            {usage && usage.actions > 0 && (
-              <span className="flex items-center gap-1 rounded-lg px-2 text-xs text-[var(--muted)]"
-                title={`Tokens used by AI actions on this dashboard${usage.estimated ? " (partly estimated)" : ""}: ${usage.tokens_in.toLocaleString()} in, ${usage.tokens_out.toLocaleString()} out`}>
-                <Gauge size={13} /> {formatTokens(usage.tokens_in + usage.tokens_out)}<span className="hidden 2xl:inline"> tokens</span>
-              </span>
+          )}
+          <button className={`${tb} !text-sm ${askOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`}
+            onClick={() => (askOpen || connectionsOpen || commentsOpen) ? closeDock() : pickDock("ask")} aria-pressed={askOpen || connectionsOpen || commentsOpen}
+            title="Ask your papers, see suggested connections, read comments">
+            <Sparkles size={15} /><span>Assistant</span>
+            {pendingLinks + openComments > 0 && <span className="rounded-full bg-[var(--accent)] px-1.5 text-[0.75rem] font-semibold leading-5 text-[var(--accent-contrast)]">{pendingLinks + openComments}</span>}
+          </button>
+
+          <div className="relative">
+            <button className={`${tb} !text-sm`} onClick={() => setMoreOpen((o) => !o)} aria-haspopup="menu" aria-expanded={moreOpen} aria-label="More actions"><MoreHorizontal size={16} /><span className="hidden lg:inline">More</span></button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                <div role="menu" className="anim-pop absolute right-0 top-full z-50 mt-1 w-60 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-pop)]" onClick={() => setMoreOpen(false)}>
+                  <MenuItem icon={<Undo2 size={15} />} label="Undo" hint="Ctrl+Z" disabled={!undoStack.current.length} onClick={undo} />
+                  <MenuItem icon={<Redo2 size={15} />} label="Redo" hint="Ctrl+Shift+Z" disabled={!redoStack.current.length} onClick={redo} />
+                  <div className="my-1 h-px bg-[var(--border)]" />
+                  <MenuItem icon={<Table2 size={15} />} label="Compare papers in a table…" disabled={readyPapers.length < 2} onClick={() => setCompareOpen(true)} />
+                  <MenuItem icon={<Download size={15} />} label="Download summary (Markdown)" onClick={() => exportMarkdown("download")} />
+                  <MenuItem icon={<Copy size={15} />} label="Copy summary" onClick={() => exportMarkdown("copy")} />
+                  <div className="my-1 h-px bg-[var(--border)]" />
+                  <MenuItem icon={<LayoutGrid size={15} />} label={showMap ? "Hide the overview map" : "Show an overview map"} onClick={() => setShowMap((v) => !v)} />
+                  <MenuItem icon={panelsHidden ? <PanelRightOpen size={15} /> : <PanelRightClose size={15} />} label={panelsHidden ? "Show side panels" : "Hide side panels"} onClick={togglePanels} />
+                  <MenuItem icon={focusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />} label={focusMode ? "Leave focus mode" : "Focus mode"} hint="hide everything but the work" onClick={toggleFocus} />
+                  {usage && usage.actions > 0 && (
+                    <p className="mt-1 flex items-center gap-1.5 border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]"
+                      title={`${usage.tokens_in.toLocaleString()} in, ${usage.tokens_out.toLocaleString()} out${usage.estimated ? " (partly estimated)" : ""}`}>
+                      <Gauge size={13} /> {formatTokens(usage.tokens_in + usage.tokens_out)} AI tokens used here
+                    </p>
+                  )}
+                </div>
+              </>
             )}
-            <div className="flex rounded-lg border border-[var(--border)] p-0.5" role="group" aria-label="View">
-              <button className={`${tb} !px-1.5 !py-0.5 ${view === "canvas" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("canvas")} aria-pressed={view === "canvas"}>Canvas</button>
-              <button className={`${tb} !px-1.5 !py-0.5 ${view === "matrix" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => setView("matrix")} aria-pressed={view === "matrix"}><LayoutGrid size={13} /><span className="hidden xl:inline">Matrix</span></button>
-              <button className={`${tb} !px-1.5 !py-0.5 ${view === "draft" ? "!bg-[var(--surface-strong)] !text-[var(--foreground)]" : ""}`} onClick={() => { setDraftMounted(true); setView("draft"); }} aria-pressed={view === "draft"}><PenLine size={13} /><span className="hidden xl:inline">Draft</span></button>
-            </div>
-            <button className={`${tb} ${connectionsOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`}
-              onClick={() => { setConnectionsOpen((o) => !o); setAskOpen(false); setCommentsOpen(false); }}>
-              <Link2 size={14} /><span className="hidden xl:inline">Connections</span>{(agent?.suggestions ?? []).filter((x) => x.status === "pending").length > 0 && ` (${(agent?.suggestions ?? []).filter((x) => x.status === "pending").length})`}
-            </button>
-            <button className={`${tb} ${askOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={() => { setAskOpen((o) => !o); setCommentsOpen(false); setConnectionsOpen(false); }}><Sparkles size={14} /><span className="hidden xl:inline">Ask</span></button>
-            <button className={tb} onClick={() => setCompareOpen(true)} disabled={readyPapers.length < 2} title={readyPapers.length < 2 ? "Add at least two papers first" : "Compare papers in a table"}><Table2 size={14} /><span className="hidden xl:inline">Compare</span></button>
-            <button className={tb} onClick={() => { setCommentsOpen((o) => !o); setAskOpen(false); setConnectionsOpen(false); }}><MessageSquare size={14} /><span className="hidden xl:inline">Comments</span>{comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}</button>
-            <button className={tb} onClick={() => exportMarkdown("download")} title="Download a Markdown summary"><Download size={14} /><span className="hidden xl:inline">Export</span></button>
-            <button className={tb} onClick={() => exportMarkdown("copy")} title="Copy a Markdown summary">Copy</button>
-            <span className="mx-0.5 h-4 w-px bg-[var(--border)]" />
-            <button className={`${tb} ${panelsHidden ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={togglePanels} aria-pressed={panelsHidden}
-              title={panelsHidden ? "Show the side panels" : "Hide the side panels (they keep their content)"}>
-              {panelsHidden ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
-            </button>
-            <button className={tb} onClick={toggleFocus} title={focusMode ? "Leave focus mode" : "Focus on the canvas: hide the tools and side panels"}>
-              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1">
           <div
-            ref={wrapRef} className={`relative min-w-0 flex-1 ${view !== "canvas" ? "hidden" : ""}`}
+            ref={wrapRef} className={`canvas-reveal relative min-w-0 flex-1 ${view !== "canvas" ? "hidden" : ""}`}
             onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
             onDrop={(e) => {
               if (!e.dataTransfer.files.length) return;
@@ -707,29 +736,29 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             >
               <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />
               <Controls showInteractive={false} />
-              <MiniMap pannable zoomable nodeStrokeWidth={2}
-                nodeColor={(n) => ({ paper: "#2563eb", excerpt: "#d97706", claim: "#7c3aed", note: "#eab308", frame: "#94a3b8", answer: "#16a34a", table: "#0891b2" } as Record<string, string>)[n.type ?? ""] ?? "#94a3b8"} />
+              {showMap && <MiniMap pannable zoomable nodeStrokeWidth={2} position="bottom-right" style={{ marginBottom: "5rem" }}
+                nodeColor={(n) => ({ paper: "#2563eb", excerpt: "#d97706", claim: "#7c3aed", note: "#eab308", frame: "#94a3b8", answer: "#16a34a", table: "#0891b2" } as Record<string, string>)[n.type ?? ""] ?? "#94a3b8"} />}
             </ReactFlow>
 
-            {/* add toolbar */}
-            <div className="pointer-events-none absolute left-0 right-0 top-2 z-10 flex justify-center">
+            {/* Floating toolbar, bottom centre (like Figma): every tool has a word, nothing to decode. */}
+            <input ref={fileInput} type="file" accept="application/pdf" multiple hidden
+              onChange={(e) => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex justify-center px-4">
               {toolsHidden ? (
-                <button className="pointer-events-auto flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--muted)] shadow-[var(--shadow-pop)] hover:text-[var(--foreground)]"
-                  onClick={toggleTools} title="Show the add tools"><Plus size={13} /> Add</button>
+                <button className="float pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+                  onClick={toggleTools}><Plus size={16} /> Add to board</button>
               ) : (
-                <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-0.5 shadow-[var(--shadow-pop)]">
-                  <button className={tb} onClick={() => fileInput.current?.click()} title="Add papers"><Upload size={14} /><span className="hidden lg:inline">Add papers</span></button>
-                  <button className={tb} onClick={() => setImportOpen(true)} title="From my library"><Library size={14} /><span className="hidden lg:inline">Library</span></button>
-                  <span className="mx-0.5 h-4 w-px bg-[var(--border)]" />
-                  <button className={tb} onClick={() => addNode("claim", { text: "", status: "idea" })} title="My research"><Target size={14} /><span className="hidden lg:inline">My research</span></button>
-                  <button className={tb} onClick={() => addNode("note", { title: "", text: "", color: "#fef3c7" })} title="Note"><StickyNote size={14} /><span className="hidden lg:inline">Note</span></button>
-                  <button className={tb} onClick={() => addNode("frame", { title: "" })} title="Group"><Frame size={14} /><span className="hidden lg:inline">Group</span></button>
-                  <span className="mx-0.5 h-4 w-px bg-[var(--border)]" />
-                  <button className={tb} onClick={toggleTools} title="Hide these tools" aria-label="Hide the add tools"><X size={13} /></button>
+                <div className="float pointer-events-auto flex items-center gap-1 p-1.5">
+                  <ToolBtn icon={<Upload size={19} />} label="Add papers" color="var(--tool-papers)" onClick={() => fileInput.current?.click()} primary />
+                  <ToolBtn icon={<Library size={19} />} label="My library" color="var(--tool-papers)" onClick={() => setImportOpen(true)} />
+                  <span className="mx-1 h-8 w-px bg-[var(--border)]" />
+                  <ToolBtn icon={<Target size={19} />} label="My research" color="var(--tool-dashboards)" onClick={() => addNode("claim", { text: "", status: "idea" })} />
+                  <ToolBtn icon={<StickyNote size={19} />} label="Note" color="var(--tool-notes)" onClick={() => addNode("note", { title: "", text: "", color: "#fef3c7" })} />
+                  <ToolBtn icon={<Frame size={19} />} label="Group" color="var(--tool-links)" onClick={() => addNode("frame", { title: "" })} />
+                  <span className="mx-1 h-8 w-px bg-[var(--border)]" />
+                  <button className="icon-btn" onClick={toggleTools} title="Hide this toolbar" aria-label="Hide this toolbar"><X size={16} /></button>
                 </div>
               )}
-              <input ref={fileInput} type="file" accept="application/pdf" multiple hidden
-                onChange={(e) => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
             </div>
 
             {ghostSuggestion && (
@@ -762,11 +791,11 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             )}
 
             {nodes.length === 0 && !busy && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="max-w-sm rounded-[var(--radius-panel)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)]/90 p-6 text-center">
-                  <FilePlus2 size={26} className="mx-auto mb-2 text-[var(--accent)]" />
-                  <p className="text-sm font-medium">Drop your PDFs here</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">Add the papers you are reading, open one to save quotes and figures, then draw links between the ideas that connect. Add a “My research” card to show where your own work fits.</p>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 pb-24">
+                <div className="anim-page max-w-md text-center">
+                  <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]"><FilePlus2 size={30} /></span>
+                  <h3 className="font-serif text-2xl font-semibold">Start with your papers</h3>
+                  <p className="mt-3 text-base leading-relaxed text-[var(--muted)]">Drag PDF files onto this board, or use <strong className="font-semibold text-[var(--foreground)]">Add papers</strong> below. Then open a paper to save quotes, and draw a line between ideas that connect.</p>
                 </div>
               </div>
             )}
@@ -784,17 +813,19 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             </div>
           )}
 
-          {/* Hidden panels stay mounted, so a half-written question or an open paper is still there when they come back. */}
-          <div className={panelsHidden ? "hidden" : "contents"}>
+          {/* The Write view is a view, not a side panel: hiding the panels must never hide it. */}
           {draftMounted && (
             <div className={view === "draft" ? "flex min-h-0 min-w-0 flex-1" : "hidden"}>
               <DraftView
                 dashboardId={dashboardId} dashboardTitle={title} docs={documents} excerpts={excerpts} papers={readyPapers}
                 onOpenSource={openSource} onUsageChanged={refreshUsage} insertRequest={draftInsert}
+                active={view === "draft"} dockOpen={askOpen || connectionsOpen || commentsOpen} onCloseDock={closeDock} onContextIds={setDraftContextIds}
               />
             </div>
           )}
 
+          {/* Hidden panels stay mounted, so a half-written question or an open paper is still there when they come back. */}
+          <div className={panelsHidden ? "hidden" : "contents"}>
           {reader && readerDoc && (
             <div className="relative w-[40%] min-w-[320px] max-w-[640px] shrink-0 border-l border-[var(--border)] md:w-[var(--panel-w)] md:min-w-0 md:max-w-none" style={panelStyle(readerPanel.width)}>
               <ResizeHandle panel={readerPanel} edge="left" label="Resize the paper reader" />
@@ -811,7 +842,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             <ConnectionsPanel
               dashboardId={dashboardId} agent={agent} paperCount={readyPapers.length} claimCount={claimCards.filter((c) => c.text.trim().length >= 12).length}
               nameOf={nameOf} beforeRun={flushSave} onStarted={() => { refreshAgent(); window.setTimeout(refreshAgent, 800); }}
-              onFocus={focusSuggestion} onAccept={acceptSuggestion} onDismiss={dismissSuggestion} onCite={openCite} onClose={() => setConnectionsOpen(false)}
+              onFocus={focusSuggestion} onAccept={acceptSuggestion} onDismiss={dismissSuggestion} onCite={openCite} onClose={closeDock} tabs={dockTabs}
             />
           )}
 
@@ -819,7 +850,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             <AskPanel
               dashboardId={dashboardId} papers={readyPapers}
               selectedDocIds={selection.docIds} selectedExcerptIds={selection.excerptIds}
-              onCite={openCite} onPin={pinAnswer} onUsageChanged={refreshUsage} onClose={() => setAskOpen(false)}
+              onCite={openCite} onPin={pinAnswer} onUsageChanged={refreshUsage} onClose={closeDock} tabs={dockTabs} draftContextIds={draftContextIds}
               onToDraft={(text, cites) => { setDraftMounted(true); setView("draft"); setDraftInsert({ text: citesToMarkers(text, cites), nonce: Date.now() }); }}
             />
           )}
@@ -828,7 +859,7 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
             <CommentsPanel
               comments={comments} label={nodeLabel} target={commentTarget} onTarget={setCommentTarget}
               panel={commentsPanel}
-              onAdd={addComment} onClose={() => setCommentsOpen(false)}
+              onAdd={addComment} onClose={closeDock} tabs={dockTabs}
               onResolve={async (c) => { const u = await dashboardApi.resolveComment(c.id, !c.resolved); setComments((x) => x.map((y) => (y.id === c.id ? u : y))); }}
               onDelete={async (c) => { await dashboardApi.deleteComment(c.id); setComments((x) => x.filter((y) => y.id !== c.id)); }}
               onJump={(id) => id && rf.fitView({ nodes: [{ id }], padding: 0.6, duration: 400, maxZoom: 1.2 })}
@@ -850,7 +881,27 @@ function CanvasInner({ dashboardId, onBack }: { dashboardId: string; onBack: () 
   );
 }
 
-function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onResolve, onDelete, onJump, panel }: {
+function MenuItem({ icon, label, hint, disabled, onClick }: { icon: React.ReactNode; label: string; hint?: string; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button role="menuitem" disabled={disabled} onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--surface-muted)] disabled:opacity-40 disabled:hover:bg-transparent">
+      <span className="text-[var(--muted)]">{icon}</span><span className="flex-1">{label}</span>
+      {hint && <span className="text-[0.75rem] text-[var(--subtle)]">{hint}</span>}
+    </button>
+  );
+}
+
+function ToolBtn({ icon, label, color, onClick, primary }: { icon: React.ReactNode; label: string; color: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button onClick={onClick} style={{ "--t": color } as React.CSSProperties}
+      className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors ${primary ? "bg-[var(--t)] text-[var(--background)] hover:opacity-90" : "text-[var(--foreground)] hover:bg-[color-mix(in_srgb,var(--t)_14%,transparent)] hover:text-[var(--t)]"}`}>
+      {icon}<span className="hidden md:inline">{label}</span>
+    </button>
+  );
+}
+
+function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onResolve, onDelete, onJump, panel, tabs }: {
+  tabs?: React.ReactNode;
   panel: ReturnType<typeof usePanelWidth>;
   comments: CommentInfo[]; label: (id: string | null) => string; target: string | null; onTarget: (id: string | null) => void;
   onAdd: (t: string) => Promise<void>; onClose: () => void; onResolve: (c: CommentInfo) => void; onDelete: (c: CommentInfo) => void; onJump: (id: string | null) => void;
@@ -860,15 +911,15 @@ function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onRe
   return (
     <aside style={panelStyle(panel.width)} className="relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
       <ResizeHandle panel={panel} edge="left" label="Resize the comments panel" />
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2"><span className="text-sm font-semibold">Comments</span>
-        <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-[var(--muted)] hover:bg-[var(--surface-muted)]"><X size={15} /></button></div>
+      <div className="flex items-center justify-between gap-1 border-b border-[var(--border)] px-4 py-3">{tabs ?? <span className="text-sm font-semibold">Comments</span>}
+        <button onClick={onClose} aria-label="Close" className="icon-btn !h-8 !w-8"><X size={15} /></button></div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {sorted.length === 0 && <p className="text-xs text-[var(--muted)]">No comments yet. Use them for reminders to yourself, or questions for a co-author.</p>}
         {sorted.map((c) => (
           <div key={c.id} className={`rounded-lg border border-[var(--border)] p-2.5 text-sm ${c.resolved ? "opacity-50" : ""}`}>
-            <button onClick={() => onJump(c.node_id)} className="mb-1 block max-w-full truncate text-[11px] text-[var(--accent)] hover:underline">{label(c.node_id)}</button>
+            <button onClick={() => onJump(c.node_id)} className="mb-1 block max-w-full truncate text-[0.75rem] text-[var(--accent)] hover:underline">{label(c.node_id)}</button>
             <p className="whitespace-pre-wrap">{c.text}</p>
-            <div className="mt-1.5 flex gap-3 text-[11px] text-[var(--muted)]">
+            <div className="mt-1.5 flex gap-3 text-[0.75rem] text-[var(--muted)]">
               <button onClick={() => onResolve(c)} className="hover:text-[var(--foreground)]">{c.resolved ? "Reopen" : "Resolve"}</button>
               <button onClick={() => onDelete(c)} className="hover:text-[var(--danger)]">Delete</button>
             </div>
@@ -876,7 +927,7 @@ function CommentsPanel({ comments, label, target, onTarget, onAdd, onClose, onRe
         ))}
       </div>
       <form className="space-y-2 border-t border-[var(--border)] p-3" onSubmit={async (e) => { e.preventDefault(); if (!text.trim()) return; await onAdd(text); setText(""); }}>
-        <div className="flex items-center justify-between text-[11px] text-[var(--muted)]">
+        <div className="flex items-center justify-between text-[0.75rem] text-[var(--muted)]">
           <span className="truncate">On: {label(target)}</span>
           {target && <button type="button" onClick={() => onTarget(null)} className="underline">Whole dashboard</button>}
         </div>

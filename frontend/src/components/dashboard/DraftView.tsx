@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, FilePlus2, History, Loader2, PanelRightClose, PanelRightOpen, PenLine, ShieldCheck, Trash2, Wand2, Quote, Download } from "lucide-react";
+import { createPortal } from "react-dom";
+import { BookOpen, FilePlus2, FileText, History, Loader2, PanelRightClose, PanelRightOpen, PenLine, ShieldCheck, Trash2, Wand2, Quote, Download } from "lucide-react";
 import { dashboardApi, type DraftSummary } from "@/lib/dashboardApi";
 import {
   addCitationAfter, appendBlock, insertAt, numberMarkers, textForSuggestion, wordCount, type SourceInfo,
@@ -12,6 +13,7 @@ import CitedMarkdown from "./CitedMarkdown";
 import DraftAutopilot from "./DraftAutopilot";
 import DraftCheck from "./DraftCheck";
 import DraftExport from "./DraftExport";
+import DraftList from "./DraftList";
 import DraftSources from "./DraftSources";
 import DraftVersions from "./DraftVersions";
 
@@ -25,6 +27,13 @@ type Props = {
   onUsageChanged: () => void;
   /** Text sent from the Ask panel ("Add to draft"). Handled once per nonce. */
   insertRequest: { text: string; nonce: number } | null;
+  /** True while the Write view is on screen: only then do the controls appear in the dashboard header. */
+  active: boolean;
+  /** The assistant dock (Ask / Connections / Comments) shares the right edge; the writing tools step aside while it is open. */
+  dockOpen: boolean;
+  onCloseDock: () => void;
+  /** Tells the dashboard which drafts the AI may read, so the Ask panel can use them too. */
+  onContextIds?: (ids: number[]) => void;
 };
 
 const TABS: { id: Tab; label: string; Icon: any }[] = [
@@ -35,7 +44,9 @@ const TABS: { id: Tab; label: string; Icon: any }[] = [
   { id: "export", label: "Export", Icon: Download },
 ];
 
-export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts, papers, onOpenSource, onUsageChanged, insertRequest }: Props) {
+export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts, papers, onOpenSource, onUsageChanged, insertRequest, active, dockOpen, onCloseDock, onContextIds }: Props) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById("dash-header-slot")); }, [active]);
   const { confirm, ask, notify, dialogs } = useDialogs();
   const side = usePanelWidth("draft_side", 330, 270, 520);
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
@@ -49,6 +60,19 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
   const [saveTick, setSaveTick] = useState(0);
   const [versionsKey, setVersionsKey] = useState(0);
   const [loadError, setLoadError] = useState("");
+  const [ready, setReady] = useState(false);               // the first draft has been opened (or there is none)
+  const [listOpen, setListOpen] = useState(true);
+  const [ctxOff, setCtxOff] = useState<number[]>([]);      // drafts the author switched off as AI context
+  const ctxKey = `resector_draft_ctx_off_${dashboardId}`;
+  useEffect(() => {
+    try { setCtxOff(JSON.parse(localStorage.getItem(ctxKey) || "[]")); setListOpen(localStorage.getItem("resector_draft_list") !== "0"); } catch { /* defaults */ }
+  }, [ctxKey]);
+  const toggleContext = (did: number) => setCtxOff((o) => {
+    const n = o.includes(did) ? o.filter((x) => x !== did) : [...o, did];
+    try { localStorage.setItem(ctxKey, JSON.stringify(n)); } catch { /* not remembered */ }
+    return n;
+  });
+  const toggleList = () => setListOpen((v) => { try { localStorage.setItem("resector_draft_list", v ? "0" : "1"); } catch { /* not remembered */ } return !v; });
 
   const ta = useRef<HTMLTextAreaElement>(null);
   const sel = useRef({ start: 0, end: 0 });
@@ -61,7 +85,8 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
   idRef.current = id;
 
   useEffect(() => { try { setSideOpen(localStorage.getItem("resector_draft_side") !== "0"); } catch { /* default open */ } }, []);
-  const toggleSide = () => setSideOpen((v) => { try { localStorage.setItem("resector_draft_side", v ? "0" : "1"); } catch { /* not remembered */ } return !v; });
+  const toggleSide = () => { if (dockOpen) { onCloseDock(); setSideOpen(true); return; } toggleSideOnly(); };
+  const toggleSideOnly = () => setSideOpen((v) => { try { localStorage.setItem("resector_draft_side", v ? "0" : "1"); } catch { /* not remembered */ } return !v; });
 
   // ---------------------------------------------------------------- saving
   const flushSave = useCallback(async () => {
@@ -102,12 +127,12 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
     catch (e: any) { setLoadError(e.message || "Could not load drafts."); setDrafts([]); return []; }
   }, [dashboardId]);
 
-  useEffect(() => { (async () => { const l = await reloadList(); if (l.length) open(l[0].id); })(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [dashboardId]);
+  useEffect(() => { (async () => { const l = await reloadList(); if (l.length) await open(l[0].id); setReady(true); })(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [dashboardId]);
 
   const create = useCallback(async (initial = "") => {
     await flushSave();
     try {
-      const d = await dashboardApi.createDraft(dashboardId, `${dashboardTitle || "My"} draft`.slice(0, 100), initial);
+      const d = await dashboardApi.createDraft(dashboardId, (`${dashboardTitle || "My"} draft` + (drafts && drafts.length ? ` ${drafts.length + 1}` : "")).slice(0, 100), initial);
       setId(d.id); setTitle(d.title); setContent(d.content); contentRef.current = d.content; dirty.current = false; setSaveState("saved");
       sel.current = { start: d.content.length, end: d.content.length };
       await reloadList();
@@ -119,15 +144,26 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
     if (id == null || !title.trim()) return;
     try { await dashboardApi.saveDraft(dashboardId, id, { title: title.trim() }); reloadList(); } catch { notify("Could not rename the draft.", "error"); }
   };
-  const remove = async () => {
-    if (id == null) return;
-    if (!(await confirm({ title: "Delete this draft?", message: "The draft and its saved versions are deleted. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
+  const removeDraft = async (did: number) => {
+    const t = drafts?.find((d) => d.id === did)?.title || "this draft";
+    if (!(await confirm({ title: `Delete “${t}”?`, message: "The draft and its saved versions are deleted. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
     try {
-      await dashboardApi.deleteDraft(dashboardId, id);
-      dirty.current = false; setId(null); setContent(""); setTitle("");
-      const l = await reloadList(); if (l.length) open(l[0].id);
+      if (did === idRef.current) { dirty.current = false; if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } }
+      await dashboardApi.deleteDraft(dashboardId, did);
+      const l = await reloadList();
+      if (did === idRef.current) { setId(null); setContent(""); setTitle(""); if (l.length) open(l[0].id); }
     } catch (e: any) { notify(e.message || "Could not delete.", "error"); }
   };
+  const remove = () => { if (id != null) removeDraft(id); };
+  const duplicate = async (did: number) => {
+    await flushSave();
+    try {
+      const src = await dashboardApi.getDraft(dashboardId, did);
+      const d = await dashboardApi.createDraft(dashboardId, `${src.title} (copy)`.slice(0, 100), src.content);
+      await reloadList(); await open(d.id);
+    } catch (e: any) { notify(e.message || "Could not duplicate the draft.", "error"); }
+  };
+  const newDraft = () => create("");
 
   // ---------------------------------------------------------------- editing helpers
   const remember = () => { const t = ta.current; if (t) sel.current = { start: t.selectionStart, end: t.selectionEnd }; };
@@ -169,7 +205,8 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
 
   // text sent from the Ask panel
   useEffect(() => {
-    if (!insertRequest || insertRequest.nonce === lastNonce.current) return;
+    // Wait for the first draft to open: otherwise the answer lands in a new draft that the initial load then hides.
+    if (!ready || !insertRequest || insertRequest.nonce === lastNonce.current) return;
     lastNonce.current = insertRequest.nonce;
     (async () => {
       if (idRef.current == null) { await create(insertRequest.text + "\n"); notify("Started a new draft with that answer."); return; }
@@ -177,45 +214,57 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
       insertText((contentRef.current.trim() ? "\n\n" : "") + insertRequest.text + "\n");
       notify("Added to the end of your draft.");
     })();
-  /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [insertRequest]);
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [insertRequest, ready]);
 
   // ---------------------------------------------------------------- preview
   const numbered = useMemo(() => (mode === "preview" ? numberMarkers(content, docs, excerpts) : null), [mode, content, docs, excerpts]);
   const words = useMemo(() => wordCount(content), [content]);
 
+  const contextIds = useMemo(() => (drafts ?? []).filter((d) => !ctxOff.includes(d.id)).map((d) => d.id), [drafts, ctxOff]);
+  useEffect(() => { onContextIds?.(contextIds); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [contextIds]);
+
   if (drafts === null) return <div className="flex items-center gap-2 p-8 text-sm text-[var(--muted)]"><Loader2 size={15} className="animate-spin" /> Opening drafts…</div>;
 
-  const bar = "flex flex-wrap items-center gap-1.5 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-1.5";
+  const controls = (
+    <>
+      <button className={`btn btn-quiet !px-2.5 ${listOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={toggleList} aria-pressed={listOpen} title={listOpen ? "Hide the list of drafts" : "Show all your drafts"}>
+        <FileText size={15} /><span className="hidden xl:inline">Drafts{drafts.length > 1 ? ` (${drafts.length})` : ""}</span>
+      </button>
+      {id != null && (
+        <>
+          <div className="seg" role="group" aria-label="Mode">
+            <button onClick={() => setMode("write")} aria-pressed={mode === "write"}>Edit</button>
+            <button onClick={() => { remember(); setMode("preview"); }} aria-pressed={mode === "preview"}>Preview</button>
+          </div>
+          <button className="icon-btn" onClick={remove} aria-label="Delete this draft" title="Delete this draft"><Trash2 size={15} /></button>
+          <button className={`btn btn-quiet !px-2.5 ${sideOpen && !dockOpen ? "!bg-[var(--accent-soft)] !text-[var(--accent)]" : ""}`} onClick={toggleSide}
+            aria-pressed={sideOpen && !dockOpen} title={sideOpen && !dockOpen ? "Hide the writing tools" : "Show the writing tools: cite, check, autopilot, versions, export"}>
+            {sideOpen && !dockOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}<span className="hidden xl:inline">Tools</span>
+          </button>
+        </>
+      )}
+    </>
+  );
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
+      {active && slot && createPortal(controls, slot)}
+      {listOpen && (
+        <DraftList drafts={drafts} currentId={id} ctxOff={ctxOff} onToggleContext={toggleContext} onOpen={(d) => d !== id && open(d)}
+          onNew={newDraft} onDuplicate={duplicate} onDelete={removeDraft} />
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className={bar}>
-          <select className="field !w-auto max-w-[11rem] !py-1 !text-xs" value={id ?? ""} onChange={(e) => e.target.value && open(Number(e.target.value))} aria-label="Choose a draft">
-            {id == null && <option value="">No draft yet</option>}
-            {drafts.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-          </select>
-          <button className="btn btn-secondary !px-2 !py-1 !text-xs" onClick={() => create("")}><FilePlus2 size={13} /> New</button>
-          {id != null && (
-            <>
-              <input className="field !w-auto min-w-[8rem] max-w-xs flex-1 !py-1 !font-serif !text-sm !font-semibold" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={rename} aria-label="Draft title" />
-              <div className="ml-auto flex items-center gap-1">
-                <span className="mr-1 text-[11px] text-[var(--muted)]">
-                  {saveState === "saving" ? "Saving…" : saveState === "error" ? <span className="text-[var(--danger)]">Not saved, will retry</span> : "Saved"} · {words} words
-                </span>
-                <div className="flex rounded-lg border border-[var(--border)] p-0.5" role="group" aria-label="Mode">
-                  <button className={`btn btn-quiet !px-2 !py-0.5 !text-xs ${mode === "write" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setMode("write")}><PenLine size={12} /> Write</button>
-                  <button className={`btn btn-quiet !px-2 !py-0.5 !text-xs ${mode === "preview" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => { remember(); setMode("preview"); }}><BookOpen size={12} /> Preview</button>
-                </div>
-                <button className="icon-btn" onClick={remove} aria-label="Delete this draft" title="Delete this draft"><Trash2 size={14} /></button>
-                <button className="icon-btn" onClick={toggleSide} aria-label={sideOpen ? "Hide the writing tools" : "Show the writing tools"} title={sideOpen ? "Hide the writing tools" : "Show the writing tools"}>
-                  {sideOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {id == null ? (
+        {id != null && (
+          <div className="mx-auto flex w-full max-w-[46rem] items-baseline gap-3 px-6 pt-4">
+            <input className="min-w-0 flex-1 bg-transparent font-serif text-2xl font-semibold outline-none placeholder:text-[var(--subtle)]" value={title}
+              onChange={(e) => setTitle(e.target.value)} onBlur={rename} placeholder="Untitled draft" aria-label="Draft title" />
+            <span className="shrink-0 text-[0.75rem] text-[var(--muted)]" aria-live="polite">
+              {saveState === "saving" ? "Saving…" : saveState === "error" ? <span className="text-[var(--danger)]">Not saved, will retry</span> : "Saved"} · {words} words
+            </span>
+          </div>
+        )}
+        {id == null && drafts.length > 0 ? (
+          <div className="flex-1 p-10" role="status" aria-label="Opening your draft"><div className="skeleton mx-auto h-full max-w-[46rem] opacity-60" /></div>
+        ) : id == null ? (
           <div className="flex flex-1 items-center justify-center p-6">
             <div className="max-w-md text-center">
               <PenLine size={28} className="mx-auto mb-2 text-[var(--accent)]" />
@@ -231,7 +280,7 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
             onChange={(e) => { change(e.target.value); remember(); }}
             onSelect={remember} onKeyUp={remember} onClick={remember} onBlur={remember}
             placeholder={"Start writing. Use the Cite tab to add a quote or page as you go, or Autopilot to draft sections.\n\nMarkdown works: # Heading, - list, **bold**."}
-            className="min-h-0 flex-1 resize-none bg-[var(--background)] px-6 py-5 font-serif text-[15px] leading-7 outline-none"
+            className="mx-auto block min-h-0 w-full max-w-[46rem] flex-1 resize-none bg-[var(--background)] px-6 py-4 font-serif text-[1.0625rem] leading-8 outline-none"
             aria-label="Draft text"
           />
         ) : (
@@ -263,13 +312,13 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
         )}
       </div>
 
-      {sideOpen && id != null && (
+      {sideOpen && !dockOpen && id != null && (
         <aside style={panelStyle(side.width)} className="relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
           <ResizeHandle panel={side} edge="left" label="Resize the writing tools" />
           <div className="flex border-b border-[var(--border)] px-1" role="tablist">
             {TABS.map(({ id: t, label, Icon }) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} title={label}
-                className={`flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-2 text-[11px] font-medium ${tab === t ? "border-[var(--accent)] text-[var(--foreground)]" : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"}`}>
+                className={`flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-2 text-[0.75rem] font-medium ${tab === t ? "border-[var(--accent)] text-[var(--foreground)]" : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"}`}>
                 <Icon size={13} /><span className="hidden 2xl:inline">{label}</span>
               </button>
             ))}
@@ -286,7 +335,7 @@ export default function DraftView({ dashboardId, dashboardTitle, docs, excerpts,
                 flushSave={flushSave} onAddCitation={addCitation} onJump={jumpTo} onOpen={onOpenSource} onUsageChanged={onUsageChanged} notify={notify} />
             )}
             {tab === "autopilot" && (
-              <DraftAutopilot dashboardId={dashboardId} papers={papers} content={content} onApply={applyAutopilot}
+              <DraftAutopilot dashboardId={dashboardId} papers={papers} content={content} contextDraftIds={contextIds.filter((x) => x !== id)} onApply={applyAutopilot}
                 onUsageChanged={onUsageChanged} confirm={confirm} notify={notify} />
             )}
             {tab === "versions" && (

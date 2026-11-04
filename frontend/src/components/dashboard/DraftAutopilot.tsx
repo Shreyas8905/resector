@@ -10,6 +10,8 @@ import { appendBlock, sectionBlock } from "@/lib/drafts";
 type Written = { heading: string; text: string; uncited: boolean; error?: string; keep: boolean };
 type Props = {
   dashboardId: string; papers: { id: number; name: string }[]; content: string;
+  /** Other drafts on this dashboard whose text the AI may read for consistency. */
+  contextDraftIds?: number[];
   onApply: (blocks: string) => Promise<void>;
   onUsageChanged: () => void;
   confirm: (o: { title: string; message?: string; confirmLabel?: string; danger?: boolean }) => Promise<boolean>;
@@ -20,7 +22,7 @@ const LENGTHS = [{ id: 130, label: "Short" }, { id: 220, label: "Medium" }, { id
 
 /** Plan an outline from your canvas, then write it section by section from your papers. You review everything
  *  before it goes into the draft, and the draft is saved as a version first so autopilot can always be undone. */
-export default function DraftAutopilot({ dashboardId, papers, content, onApply, onUsageChanged, confirm, notify }: Props) {
+export default function DraftAutopilot({ dashboardId, papers, content, contextDraftIds, onApply, onUsageChanged, confirm, notify }: Props) {
   const [instruction, setInstruction] = useState("");
   const [scope, setScope] = useState<number[]>([]);          // empty = every paper
   const [words, setWords] = useState(220);
@@ -48,7 +50,7 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
     if (needKey()) return;
     setPlanning(true); setError("");
     try {
-      const r = await dashboardApi.outline(dashboardId, instruction, docIds);
+      const r = await dashboardApi.outline(dashboardId, instruction, docIds, contextDraftIds?.length ? contextDraftIds : undefined);
       setSections(r.sections); setWritten([]); onUsageChanged();
     } catch (e: any) { setError(e.message || "Could not plan an outline."); } finally { setPlanning(false); }
   };
@@ -63,7 +65,7 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
       setProgress(i);
       try {
         const r = await dashboardApi.writeSection(dashboardId, {
-          heading: live[i].heading, goal: live[i].goal, instruction, document_ids: docIds, draft_text: soFar, words,
+          heading: live[i].heading, goal: live[i].goal, instruction, document_ids: docIds, draft_text: soFar, words, context_draft_ids: contextDraftIds?.length ? contextDraftIds : undefined,
         });
         out.push({ heading: live[i].heading, text: r.text, uncited: r.uncited, keep: true });
         soFar = appendBlock(soFar, sectionBlock(live[i].heading, r.text));
@@ -97,7 +99,8 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
     <div className="space-y-3 text-sm">
       <div className="rounded-lg border border-[var(--border)] p-2.5">
         <p className="flex items-center gap-1.5 text-xs font-medium"><Wand2 size={13} className="text-[var(--accent)]" /> Autopilot</p>
-        <p className="mt-1 text-[11px] text-[var(--muted)]">It uses your papers, your “My research” cards and the links you drew. Every sentence it writes carries a citation you can click.</p>
+        <p className="mt-1 text-[0.75rem] text-[var(--muted)]">It uses your papers, your “My research” cards and the links you drew. Every sentence it writes carries a citation you can click.
+          {contextDraftIds && contextDraftIds.length > 0 && <> It also reads your other {contextDraftIds.length === 1 ? "draft" : `${contextDraftIds.length} drafts`} to stay consistent. Change this in the drafts list.</>}</p>
         <label className="field-label mt-2 !text-xs" htmlFor="ap-goal">What should it write?</label>
         <textarea id="ap-goal" rows={3} className="field !text-xs" value={instruction} onChange={(e) => setInstruction(e.target.value)}
           placeholder="e.g. A related-work section on sleep and memory in older adults, focusing on methods" />
@@ -110,14 +113,14 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
                 <span className="truncate" title={p.name}>{p.name}</span>
               </label>
             ))}
-            {scope.length > 0 && <button className="text-[11px] text-[var(--accent)] underline" onClick={() => setScope([])}>Use all papers</button>}
+            {scope.length > 0 && <button className="text-[0.75rem] text-[var(--accent)] underline" onClick={() => setScope([])}>Use all papers</button>}
           </div>
         </details>
         <div className="mt-2 flex items-center gap-1.5">
           <button className="btn btn-secondary !py-1.5 !text-xs" onClick={plan} disabled={planning || writing || papers.length === 0}>
             {planning ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} {sections.length ? "Plan again" : "Plan an outline"}
           </button>
-          {papers.length === 0 && <span className="text-[11px] text-[var(--muted)]">Add a paper first.</span>}
+          {papers.length === 0 && <span className="text-[0.75rem] text-[var(--muted)]">Add a paper first.</span>}
         </div>
       </div>
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
@@ -133,17 +136,17 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
                 <button className="icon-btn" onClick={() => move(i, 1)} aria-label="Move down" disabled={i === sections.length - 1}><ArrowDown size={13} /></button>
                 <button className="icon-btn" onClick={() => setSections((x) => x.filter((_, k) => k !== i))} aria-label="Remove section"><Trash2 size={13} /></button>
               </div>
-              <input className="field mt-1 !py-1 !text-[11px]" value={s.goal} placeholder="What this section should establish" onChange={(e) => set(i, { goal: e.target.value })} aria-label={`Section ${i + 1} goal`} />
+              <input className="field mt-1 !py-1 !text-[0.75rem]" value={s.goal} placeholder="What this section should establish" onChange={(e) => set(i, { goal: e.target.value })} aria-label={`Section ${i + 1} goal`} />
             </div>
           ))}
           <button className="btn btn-quiet !py-1 !text-xs" onClick={() => setSections((s) => [...s, { heading: "", goal: "" }])}><Plus size={12} /> Add a section</button>
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-[var(--muted)]">Length</span>
             {LENGTHS.map((l) => (
-              <button key={l.id} className={`btn btn-quiet !px-2 !py-0.5 !text-[11px] ${words === l.id ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setWords(l.id)}>{l.label}</button>
+              <button key={l.id} className={`btn btn-quiet !px-2 !py-0.5 !text-[0.75rem] ${words === l.id ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setWords(l.id)}>{l.label}</button>
             ))}
           </div>
-          {est && <p className="text-[11px] text-[var(--muted)]">Writing {live.length} section{live.length === 1 ? "" : "s"} will use roughly {formatTokens(est.tokens_in + est.tokens_out)} tokens.</p>}
+          {est && <p className="text-[0.75rem] text-[var(--muted)]">Writing {live.length} section{live.length === 1 ? "" : "s"} will use roughly {formatTokens(est.tokens_in + est.tokens_out)} tokens.</p>}
           <div className="flex gap-1.5">
             {writing ? (
               <button className="btn btn-secondary !py-1.5 !text-xs" onClick={() => { cancel.current = true; }}>Stop after this section</button>
@@ -151,7 +154,7 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
               <button className="btn btn-primary !py-1.5 !text-xs" onClick={write} disabled={!live.length || planning}>Write {live.length} section{live.length === 1 ? "" : "s"}</button>
             )}
           </div>
-          {writing && <p className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Loader2 size={11} className="animate-spin" /> Writing section {Math.min(progress + 1, live.length)} of {live.length}…</p>}
+          {writing && <p className="flex items-center gap-1.5 text-[0.75rem] text-[var(--muted)]"><Loader2 size={11} className="animate-spin" /> Writing section {Math.min(progress + 1, live.length)} of {live.length}…</p>}
         </div>
       )}
 
@@ -164,11 +167,11 @@ export default function DraftAutopilot({ dashboardId, papers, content, onApply, 
                 {!w.error && <input type="checkbox" checked={w.keep} onChange={(e) => setWritten((x) => x.map((y, k) => (k === i ? { ...y, keep: e.target.checked } : y)))} />}
                 {w.heading}
               </label>
-              {w.error ? <p className="mt-1 text-[11px] text-[var(--danger)]">{w.error}</p> : (
+              {w.error ? <p className="mt-1 text-[0.75rem] text-[var(--danger)]">{w.error}</p> : (
                 <>
-                  <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed">{w.text.replace(/\[@[^\]]+\]/g, (m) => (m.startsWith("[@e") ? " [quote]" : " [source]"))}</p>
-                  {w.uncited && <p className="mt-1 text-[11px] text-amber-600">No citations were produced for this section. Treat it as unverified.</p>}
-                  {/TODO:/.test(w.text) && <p className="mt-1 text-[11px] text-amber-600">The papers did not cover everything here. Look for the TODO line.</p>}
+                  <p className="mt-1 whitespace-pre-wrap text-[0.75rem] leading-relaxed">{w.text.replace(/\[@[^\]]+\]/g, (m) => (m.startsWith("[@e") ? " [quote]" : " [source]"))}</p>
+                  {w.uncited && <p className="mt-1 text-[0.75rem] text-amber-600">No citations were produced for this section. Treat it as unverified.</p>}
+                  {/TODO:/.test(w.text) && <p className="mt-1 text-[0.75rem] text-amber-600">The papers did not cover everything here. Look for the TODO line.</p>}
                 </>
               )}
             </div>

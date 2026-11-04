@@ -35,7 +35,7 @@ function Shell({ id, selected, children, className = "", accent }: {
       {children}
       <button
         onClick={(e) => { e.stopPropagation(); comment(id); }}
-        className={`nodrag absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-1 text-[10px] text-[var(--muted)] shadow-sm hover:text-[var(--foreground)] ${n ? "" : "opacity-0 group-hover:opacity-100"}`}
+        className={`nodrag absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-1 text-[0.75rem] text-[var(--muted)] shadow-sm hover:text-[var(--foreground)] ${n ? "" : "opacity-0 group-hover:opacity-100"}`}
         title="Comments"
       >
         <MessageSquare size={11} />{n > 0 && n}
@@ -99,7 +99,7 @@ export function PaperNode({ id, data, selected }: NodeProps) {
         <div className="space-y-2 border-t border-[var(--border)] p-3">
           {d.summary && (
             <div className="nowheel max-h-64 overflow-y-auto rounded-md bg-[var(--surface-muted)] p-2.5">
-              <CitedMarkdown text={d.summary} className="prose prose-compact text-[13px]" onPage={(pg) => openPage(d.document_id, pg)} />
+              <CitedMarkdown text={d.summary} className="prose prose-compact text-[0.8125rem]" onPage={(pg) => openPage(d.document_id, pg)} />
             </div>
           )}
           <Text id={id} field="note" value={d.note ?? ""} placeholder="Your notes on this paper…" rows={3} />
@@ -109,11 +109,11 @@ export function PaperNode({ id, data, selected }: NodeProps) {
                 <li key={e.id}>
                   <button onClick={() => openReader(d.document_id, e.id)} className="nodrag w-full rounded-md bg-[var(--surface-muted)] px-2 py-1.5 text-left text-xs text-[var(--muted)] hover:text-[var(--foreground)]">
                     <span className="line-clamp-2">{e.quote || "Saved figure or table"}</span>
-                    <span className="text-[10px] text-[var(--subtle)]">page {e.page}</span>
+                    <span className="text-[0.75rem] text-[var(--subtle)]">page {e.page}</span>
                   </button>
                 </li>
               ))}
-              {mine.length > 8 && <li className="text-center text-[10px] text-[var(--subtle)]">+{mine.length - 8} more</li>}
+              {mine.length > 8 && <li className="text-center text-[0.75rem] text-[var(--subtle)]">+{mine.length - 8} more</li>}
             </ul>
           )}
         </div>
@@ -141,7 +141,7 @@ export function ExcerptNode({ id, data, selected }: NodeProps) {
             <p className="line-clamp-[10] text-sm italic leading-snug">{ex.quote}</p>
           </div>
         )}
-        <button onClick={() => openReader(ex.document_id, ex.id)} className="nodrag mt-2 flex w-full items-center gap-1 text-left text-[11px] text-[var(--muted)] hover:text-[var(--accent)]" title="Show in the paper">
+        <button onClick={() => openReader(ex.document_id, ex.id)} className="nodrag mt-2 flex w-full items-center gap-1 text-left text-[0.75rem] text-[var(--muted)] hover:text-[var(--accent)]" title="Show in the paper">
           {ex.kind === "area" && <ImageIcon size={11} />}<span className="truncate">{paper} · page {ex.page}</span>
         </button>
         <Text id={id} field="note" value={d.note ?? ""} placeholder="Add a thought…" rows={2} className="mt-1" />
@@ -185,7 +185,7 @@ export function ClaimNode({ id, data, selected }: NodeProps) {
     <Shell id={id} selected={selected} className="w-[300px] !border-[#7c3aed]/40" accent="#7c3aed">
       <div className="p-3">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[#7c3aed]"><Target size={13} /> My research</div>
-        <Text id={id} field="text" value={d.text ?? ""} placeholder="State your claim or research question…" rows={3} className="!text-[15px] !font-medium" />
+        <Text id={id} field="text" value={d.text ?? ""} placeholder="State your claim or research question…" rows={3} className="!text-[0.9375rem] !font-medium" />
         <select value={d.status ?? "idea"} onFocus={snapshot} onChange={(e) => update(id, { status: e.target.value })}
           className="nodrag mt-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs">
           {CLAIM_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
@@ -223,7 +223,7 @@ export function AnswerNode({ id, data, selected }: NodeProps) {
         <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[#16a34a]"><MessagesSquare size={13} /> From your papers</div>
         {d.question && <p className="mb-1.5 text-sm font-medium leading-snug">{d.question}</p>}
         <div className="nowheel max-h-72 overflow-y-auto">
-          <CitedMarkdown text={d.answer ?? ""} className="prose prose-compact text-[13px]"
+          <CitedMarkdown text={d.answer ?? ""} className="prose prose-compact text-[0.8125rem]"
             onCite={(n) => { const c = d.cites?.find((x) => x.n === n); if (c) openCite(c); }} />
         </div>
         <Text id={id} field="note" value={d.note ?? ""} placeholder="Add a thought…" rows={2} className="mt-1" />
@@ -267,7 +267,7 @@ export function TableNode({ id, data, selected }: NodeProps) {
                       <td key={c} className={`border-b border-l border-[var(--border)] px-2 py-1.5 ${empty ? "text-[var(--subtle)]" : ""}`}>
                         {cell?.text ?? "—"}
                         {cell?.cites.map((ct) => (
-                          <button key={ct.n} className="nodrag mx-0.5 rounded bg-[var(--accent-soft)] px-1 text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)]"
+                          <button key={ct.n} className="nodrag mx-0.5 rounded bg-[var(--accent-soft)] px-1 text-[0.75rem] font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)]"
                             title={ct.quote} onClick={() => openCite(ct)}>
                             {ct.page ? `p.${ct.page}` : "src"}
                           </button>
@@ -280,7 +280,7 @@ export function TableNode({ id, data, selected }: NodeProps) {
             </tbody>
           </table>
         </div>
-        <p className="mt-1.5 text-[10px] text-[var(--subtle)]">Filled by AI from each paper’s text. Click a page tag to check the source.</p>
+        <p className="mt-1.5 text-[0.75rem] text-[var(--subtle)]">Filled by AI from each paper’s text. Click a page tag to check the source.</p>
       </div>
     </Shell>
   );

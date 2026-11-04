@@ -7,8 +7,9 @@ export const metadata: Metadata = {
   description: "A research workspace for reading, questioning and connecting papers.",
 };
 
-// Runs before first paint so people who chose dark never see a light flash on launch.
-const themeInit = `(function(){try{var t=localStorage.getItem("resector_theme")==="dark"?"dark":"light";var r=document.documentElement;r.dataset.theme=t;r.classList.toggle("dark",t==="dark");}catch(e){}})();`;
+// Runs before first paint: no flash of the wrong theme, and the chosen text size is applied at once.
+// With no saved choice the theme follows the computer's light/dark setting.
+const themeInit = `(function(){try{var d=document.documentElement;var t=localStorage.getItem("resector_theme");var dark=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);d.dataset.theme=dark?"dark":"light";d.classList.toggle("dark",dark);var x=localStorage.getItem("resector_text");if(x==="large"||x==="xlarge")d.dataset.text=x;}catch(e){}})();`;
 
 export default function RootLayout({
   children,

@@ -650,7 +650,7 @@ export default function PaperGraphView({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
         {/* Titles Density Slider */}
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span className="text-[11px] font-medium">Titles</span>
+          <span className="text-[0.75rem] font-medium">Titles</span>
           <input
             type="range"
             min="0"
@@ -664,7 +664,7 @@ export default function PaperGraphView({
 
         {/* Importance / Size Slider */}
         <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span className="text-[11px] font-medium">Importance</span>
+          <span className="text-[0.75rem] font-medium">Importance</span>
           <input
             type="range"
             min="0"
@@ -773,7 +773,7 @@ export default function PaperGraphView({
         </div>
 
         {/* Quick Presets */}
-        <div className="hidden items-center gap-2 text-[11px] text-[var(--muted)] lg:flex">
+        <div className="hidden items-center gap-2 text-[0.75rem] text-[var(--muted)] lg:flex">
           <span>Presets:</span>
           {PRESET_PAPERS.map((preset, idx) => (
             <button
@@ -881,7 +881,7 @@ export default function PaperGraphView({
                 Export GEXF
               </button>
 
-              <div className="rounded border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 text-[11px] font-medium text-[var(--muted)] shadow-sm backdrop-blur-sm">
+              <div className="rounded border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 text-[0.75rem] font-medium text-[var(--muted)] shadow-sm backdrop-blur-sm">
                 <span>
                   {graphData.total_nodes || graphData.nodes.length} papers
                 </span>
@@ -898,18 +898,18 @@ export default function PaperGraphView({
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {selectedNode.is_root ? (
-                      <span className="rounded bg-[var(--foreground)] px-2 py-0.5 text-[10px] font-bold text-[var(--surface)]">
+                      <span className="rounded bg-[var(--foreground)] px-2 py-0.5 text-[0.75rem] font-bold text-[var(--surface)]">
                         ROOT PAPER
                       </span>
                     ) : (
                       <span
-                        className="rounded px-2 py-0.5 text-[10px] font-bold text-white"
+                        className="rounded px-2 py-0.5 text-[0.75rem] font-bold text-white"
                         style={{ backgroundColor: getNodeColor(selectedNode) }}
                       >
                         CLUSTER #{selectedNode.cluster ?? 0}
                       </span>
                     )}
-                    <span className="text-[11px] text-[var(--muted)]">
+                    <span className="text-[0.75rem] text-[var(--muted)]">
                       Hop Distance: {selectedNode.distance ?? 0}
                     </span>
                   </div>
@@ -949,7 +949,7 @@ export default function PaperGraphView({
 
                 {selectedNode.abstract ? (
                   <div className="mt-3 border-t border-[var(--border)] pt-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--subtle)]">
+                    <p className="text-[0.75rem] font-bold uppercase tracking-wider text-[var(--subtle)]">
                       Abstract Preview
                     </p>
                     <p className="mt-1 line-clamp-4 text-xs leading-relaxed text-[var(--foreground)]/90">

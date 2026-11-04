@@ -85,11 +85,11 @@ export default function DraftCheck({ dashboardId, draftId, content, saveTick, do
     <div className="space-y-3 text-sm">
       <div className="rounded-lg border border-[var(--border)] p-2.5">
         <p className="flex items-center gap-1.5 text-xs font-medium"><ShieldCheck size={13} className="text-[var(--accent)]" /> Check this draft against your papers</p>
-        <p className="mt-1 text-[11px] text-[var(--muted)]">Looks at each cited sentence and each uncited sentence that states a fact, and tells you whether the paper really says it.</p>
+        <p className="mt-1 text-[0.75rem] text-[var(--muted)]">Looks at each cited sentence and each uncited sentence that states a fact, and tells you whether the paper really says it.</p>
         {est && est.items > 0 && !running && (
-          <p className="mt-1.5 text-[11px] text-[var(--muted)]">About {est.items} sentence{est.items === 1 ? "" : "s"} · roughly {formatTokens(est.tokens_in + est.tokens_out)} tokens{est.skipped > 0 ? ` · ${est.skipped} more skipped to keep the cost down` : ""}</p>
+          <p className="mt-1.5 text-[0.75rem] text-[var(--muted)]">About {est.items} sentence{est.items === 1 ? "" : "s"} · roughly {formatTokens(est.tokens_in + est.tokens_out)} tokens{est.skipped > 0 ? ` · ${est.skipped} more skipped to keep the cost down` : ""}</p>
         )}
-        {est && est.items === 0 && <p className="mt-1.5 text-[11px] text-[var(--muted)]">Nothing to check yet. Write some sentences with claims or citations.</p>}
+        {est && est.items === 0 && <p className="mt-1.5 text-[0.75rem] text-[var(--muted)]">Nothing to check yet. Write some sentences with claims or citations.</p>}
         <div className="mt-2 flex gap-1.5">
           {running ? (
             <button className="btn btn-secondary !py-1.5 !text-xs" onClick={cancel}>Stop</button>
@@ -100,23 +100,23 @@ export default function DraftCheck({ dashboardId, draftId, content, saveTick, do
           )}
         </div>
         {running && state?.run && (
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted)]"><Loader2 size={11} className="animate-spin" /> Checked {state.run.done} of {state.run.total || "?"} sentences…</p>
+          <p className="mt-2 flex items-center gap-1.5 text-[0.75rem] text-[var(--muted)]"><Loader2 size={11} className="animate-spin" /> Checked {state.run.done} of {state.run.total || "?"} sentences…</p>
         )}
-        {state?.run && !running && state.run.status !== "done" && <p className="mt-2 text-[11px] text-[var(--danger)]">{state.run.status === "cancelled" ? "Stopped. " : ""}{state.run.message}</p>}
-        {error && <p className="mt-2 text-[11px] text-[var(--danger)]">{error}</p>}
+        {state?.run && !running && state.run.status !== "done" && <p className="mt-2 text-[0.75rem] text-[var(--danger)]">{state.run.status === "cancelled" ? "Stopped. " : ""}{state.run.message}</p>}
+        {error && <p className="mt-2 text-[0.75rem] text-[var(--danger)]">{error}</p>}
       </div>
 
       {result && findings.length > 0 && (
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem]">
             {(["supported", "partial", "unsupported", "contradicted", "unchecked"] as const).filter((k) => counts[k]).map((k) => (
               <span key={k} className={`flex items-center gap-1 ${BADGE[k].cls}`}>{React.createElement(BADGE[k].Icon, { size: 12 })} {counts[k]} {BADGE[k].label.toLowerCase()}</span>
             ))}
           </div>
-          {stale && <p className="rounded-md bg-[var(--surface-muted)] p-2 text-[11px] text-[var(--muted)]">The draft has changed since this check. Results for edited sentences are greyed out. Run the check again to refresh.</p>}
+          {stale && <p className="rounded-md bg-[var(--surface-muted)] p-2 text-[0.75rem] text-[var(--muted)]">The draft has changed since this check. Results for edited sentences are greyed out. Run the check again to refresh.</p>}
           <div className="flex gap-1 text-xs" role="group" aria-label="Show">
-            <button className={`btn btn-quiet !px-2 !py-1 !text-[11px] ${filter === "attention" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setFilter("attention")}>Needs attention</button>
-            <button className={`btn btn-quiet !px-2 !py-1 !text-[11px] ${filter === "all" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setFilter("all")}>All</button>
+            <button className={`btn btn-quiet !px-2 !py-1 !text-[0.75rem] ${filter === "attention" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setFilter("attention")}>Needs attention</button>
+            <button className={`btn btn-quiet !px-2 !py-1 !text-[0.75rem] ${filter === "all" ? "!bg-[var(--surface-strong)]" : ""}`} onClick={() => setFilter("all")}>All</button>
           </div>
           {shown.length === 0 && <p className="text-xs text-[var(--muted)]">Everything checked is supported by your papers.</p>}
           <ul className="space-y-2">
@@ -125,18 +125,18 @@ export default function DraftCheck({ dashboardId, draftId, content, saveTick, do
               const here = content.includes(f.raw);
               return (
                 <li key={f.idx} className={`rounded-lg border border-[var(--border)] p-2 ${here ? "" : "opacity-50"}`}>
-                  <p className={`flex items-center gap-1 text-[11px] font-medium ${b.cls}`}>{React.createElement(b.Icon, { size: 12 })} {b.label}{!f.cited && " · no citation"}</p>
+                  <p className={`flex items-center gap-1 text-[0.75rem] font-medium ${b.cls}`}>{React.createElement(b.Icon, { size: 12 })} {b.label}{!f.cited && " · no citation"}</p>
                   <button className="mt-1 block w-full text-left text-xs hover:underline" disabled={!here} onClick={() => onJump(f.raw)} title="Go to this sentence">“{f.sentence.length > 180 ? f.sentence.slice(0, 180) + "…" : f.sentence}”</button>
-                  {f.reason && <p className="mt-1 text-[11px] text-[var(--muted)]">{f.reason}</p>}
+                  {f.reason && <p className="mt-1 text-[0.75rem] text-[var(--muted)]">{f.reason}</p>}
                   {f.sources.slice(0, 2).map((s, i) => (
-                    <button key={i} className="mt-1 block w-full truncate text-left text-[11px] text-[var(--accent)] hover:underline" onClick={() => open(s.marker)} title={s.quote}>
+                    <button key={i} className="mt-1 block w-full truncate text-left text-[0.75rem] text-[var(--accent)] hover:underline" onClick={() => open(s.marker)} title={s.quote}>
                       {s.filename}{s.page ? `, p.${s.page}` : ""}
                     </button>
                   ))}
                   {here && f.suggest && !f.cited && (
-                    <button className="btn btn-primary mt-1.5 !px-2 !py-1 !text-[11px]" onClick={() => add(f)}>Add this citation</button>
+                    <button className="btn btn-primary mt-1.5 !px-2 !py-1 !text-[0.75rem]" onClick={() => add(f)}>Add this citation</button>
                   )}
-                  {!f.cited && f.verdict === "unsupported" && <p className="mt-1 text-[11px] text-[var(--muted)]">Add a source for this, or soften the claim.</p>}
+                  {!f.cited && f.verdict === "unsupported" && <p className="mt-1 text-[0.75rem] text-[var(--muted)]">Add a source for this, or soften the claim.</p>}
                 </li>
               );
             })}

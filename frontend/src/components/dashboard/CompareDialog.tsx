@@ -121,7 +121,7 @@ export default function CompareDialog({ dashboardId, papers, preselected, onClos
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] p-3">
-          <span className="text-[11px] text-[var(--subtle)]">{est ? `Uses about ${formatTokens(est)} tokens from your AI provider.` : ""}</span>
+          <span className="text-[0.75rem] text-[var(--subtle)]">{est ? `Uses about ${formatTokens(est)} tokens from your AI provider.` : ""}</span>
           <div className="flex gap-2">
             {running
               ? <button className="btn btn-secondary" onClick={() => { cancelled.current = true; }}>Stop after this paper</button>

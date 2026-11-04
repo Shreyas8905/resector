@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { linkifyCitations, parseCiteHref } from "@/lib/citations";
 
 const chip =
-  "mx-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-md bg-[var(--accent-soft)] px-1 align-baseline text-[11px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)]";
+  "mx-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-md bg-[var(--accent-soft)] px-1 align-baseline text-[0.75rem] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--accent-contrast)]";
 
 /** Markdown where [3] and [p.7] become clickable chips. Any other link is shown as plain text. */
 export default function CitedMarkdown({ text, onCite, onPage, className = "prose prose-compact" }: {

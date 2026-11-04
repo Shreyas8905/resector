@@ -71,13 +71,13 @@ export default function UpdateStatus({ compact = false }: { compact?: boolean })
           {u.state === "error" && (
             <>
               <p className="flex items-start gap-1.5 text-[var(--danger)]"><AlertCircle size={13} className="mt-0.5 shrink-0" /> The update didn’t finish. ReSector keeps working as before.</p>
-              <p className="mt-1 break-words text-[10px] text-[var(--muted)]">{u.message}</p>
+              <p className="mt-1 break-words text-[0.75rem] text-[var(--muted)]">{u.message}</p>
               <button className="btn btn-secondary mt-2 !px-2.5 !py-1 !text-xs" onClick={start}>Try again</button>
             </>
           )}
         </div>
       )}
-      <p className={`text-[11px] text-[var(--subtle)] ${compact ? "text-center" : ""}`} title={`ReSector version ${version}`}>
+      <p className={`text-[0.75rem] text-[var(--subtle)] ${compact ? "text-center" : ""}`} title={`ReSector version ${version}`}>
         {compact ? `v${version}` : `ReSector v${version}`}
         {u.state === "available" && dismissed && !compact && (
           <button className="ml-2 text-[var(--accent)] underline" onClick={() => setDismissed(false)}>Update to {u.version}</button>

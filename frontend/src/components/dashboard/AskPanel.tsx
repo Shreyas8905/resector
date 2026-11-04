@@ -16,11 +16,16 @@ type Props = {
   onCite: (c: Cite) => void;
   onPin: (question: string, answer: string, cites: Cite[]) => void;
   onToDraft?: (answer: string, cites: Cite[]) => void;
+  /** Drafts on this dashboard that may be read for context (set in the Write view). */
+  draftContextIds?: number[];
+  tabs?: React.ReactNode;                           // dock tab strip, shown instead of the title
+  embedded?: boolean;                               // fill a parent (the Draft tools) instead of being its own side panel
   onUsageChanged: () => void;
   onClose: () => void;
 };
 
-export default function AskPanel({ dashboardId, papers, selectedDocIds, selectedExcerptIds, onCite, onPin, onToDraft, onUsageChanged, onClose }: Props) {
+export default function AskPanel({ dashboardId, papers, selectedDocIds, selectedExcerptIds, onCite, onPin, onToDraft, onUsageChanged, onClose, tabs, embedded, draftContextIds = [] }: Props) {
+  const [useDrafts, setUseDrafts] = useState(true);
   const panel = usePanelWidth("dash_ask", 320, 260, 560);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -60,6 +65,7 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
         dashboardId, text,
         effectiveScope === "selected" && selectedDocIds.length ? selectedDocIds : undefined,
         effectiveScope === "selected" && selectedExcerptIds.length ? selectedExcerptIds : undefined,
+        useDrafts && draftContextIds.length ? draftContextIds : undefined,
       );
       setMessages((m) => [...m, { id: -Date.now() - 1, role: "assistant", content: r.answer, cites: r.cites }]);
       setLastTokens(r.usage.tokens_in + r.usage.tokens_out);
@@ -73,20 +79,20 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
   };
 
   return (
-    <aside style={panelStyle(panel.width)} className="anim-slide-in relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
-      <ResizeHandle panel={panel} edge="left" label="Resize the Ask panel" />
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-        <span className="text-sm font-semibold">Ask your papers</span>
+    <Shell embedded={embedded} panel={panel}>
+      {!embedded && <ResizeHandle panel={panel} edge="left" label="Resize the Ask panel" />}
+      <div className="flex items-center justify-between gap-1 border-b border-[var(--border)] px-4 py-3">
+        {tabs ?? <span className="text-sm font-semibold">Ask your papers</span>}
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <button className="icon-btn !h-8 !w-8" title="Clear this conversation" aria-label="Clear conversation"
               onClick={async () => { await dashboardApi.clearChat(dashboardId).catch(() => {}); setMessages([]); }}><Trash2 size={14} /></button>
           )}
-          <button className="icon-btn !h-8 !w-8" onClick={onClose} aria-label="Close"><X size={15} /></button>
+          {!embedded && <button className="icon-btn !h-8 !w-8" onClick={onClose} aria-label="Close"><X size={15} /></button>}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-3 text-xs leading-relaxed text-[var(--muted)]">
             <p className="font-medium text-[var(--foreground)]">Answers come only from your papers.</p>
@@ -133,7 +139,7 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
         {papers.length === 0 ? (
           <p className="text-xs text-[var(--muted)]">Add a paper and wait for it to finish reading to start asking.</p>
         ) : (
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-[0.75rem]">
             <span className="text-[var(--muted)]">Asking:</span>
             <button type="button" onClick={() => setScope("all")}
               className={`rounded-full border px-2 py-0.5 ${effectiveScope === "all" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}>
@@ -146,6 +152,12 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
             </button>
           </div>
         )}
+        {draftContextIds.length > 0 && (
+          <label className="flex cursor-pointer items-center gap-2 text-[0.8125rem] text-[var(--muted)]">
+            <input type="checkbox" checked={useDrafts} onChange={(e) => setUseDrafts(e.target.checked)} />
+            Also read my {draftContextIds.length === 1 ? "draft" : `${draftContextIds.length} drafts`} for context
+          </label>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={input} onChange={(e) => setInput(e.target.value)} rows={2} placeholder="Ask a question about your papers…"
@@ -154,10 +166,20 @@ export default function AskPanel({ dashboardId, papers, selectedDocIds, selected
           />
           <button className="btn btn-primary !px-3" disabled={!input.trim() || busy || !papers.length} aria-label="Send"><Send size={15} /></button>
         </div>
-        <p className="text-[11px] text-[var(--subtle)]">
+        <p className="text-[0.75rem] text-[var(--subtle)]">
           {lastTokens != null ? `Last answer used about ${formatTokens(lastTokens)} tokens.` : hint ? `Each question uses up to about ${formatTokens(hint)} tokens.` : ""}
         </p>
       </form>
+    </Shell>
+  );
+}
+
+
+function Shell({ embedded, panel, children }: { embedded?: boolean; panel: ReturnType<typeof usePanelWidth>; children: React.ReactNode }) {
+  if (embedded) return <div className="flex h-full min-h-0 flex-col">{children}</div>;
+  return (
+    <aside style={panelStyle(panel.width)} className="anim-slide-in relative flex w-80 shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] md:w-[var(--panel-w)]">
+      {children}
     </aside>
   );
 }

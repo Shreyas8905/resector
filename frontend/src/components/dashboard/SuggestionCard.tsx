@@ -38,7 +38,7 @@ export default function SuggestionCard({ s, aName, bName, onAccept, onDismiss, o
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[10px] text-[var(--subtle)]">Suggested by AI from the quoted text. Check the source before you rely on it.</p>
+      <p className="mt-2 text-[0.75rem] text-[var(--subtle)]">Suggested by AI from the quoted text. Check the source before you rely on it.</p>
       {s.status === "pending" && (onAccept || onDismiss) && (
         <div className="mt-2.5 flex gap-2">
           {onAccept && <button className="btn btn-primary !py-1.5 !text-xs" onClick={onAccept}><Check size={13} /> Add this link</button>}

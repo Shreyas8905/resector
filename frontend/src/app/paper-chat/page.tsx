@@ -564,7 +564,7 @@ export default function PaperChatPage() {
                       setIsSessionPaneOpen(false);
                     }}
                     aria-current={isActive ? "true" : undefined}
-                    className={`flex w-full items-center gap-2.5 rounded-[var(--radius-control)] py-2 pl-3 pr-9 text-left text-[13px] transition-colors ${
+                    className={`flex w-full items-center gap-2.5 rounded-[var(--radius-control)] py-2 pl-3 pr-9 text-left text-[0.8125rem] transition-colors ${
                       isActive
                         ? "bg-[var(--accent-soft)] font-medium text-[var(--accent-strong)]"
                         : "text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
@@ -801,7 +801,7 @@ export default function PaperChatPage() {
                                     <span className="block text-sm font-semibold group-hover:text-[var(--accent-strong)]">
                                       {starter.title}
                                     </span>
-                                    <span className="mt-0.5 line-clamp-2 block text-[13px] leading-relaxed text-[var(--muted)]">
+                                    <span className="mt-0.5 line-clamp-2 block text-[0.8125rem] leading-relaxed text-[var(--muted)]">
                                       {starter.prompt}
                                     </span>
                                   </span>
@@ -822,7 +822,7 @@ export default function PaperChatPage() {
                               aria-label={isUser ? "You" : "ReSector"}
                             >
                               {isUser ? (
-                                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--accent)] px-4 py-2.5 text-[15px] leading-relaxed text-[var(--accent-contrast)]">
+                                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--accent)] px-4 py-2.5 text-[0.9375rem] leading-relaxed text-[var(--accent-contrast)]">
                                   {m.content}
                                 </div>
                               ) : (
@@ -928,7 +928,7 @@ export default function PaperChatPage() {
                         placeholder="Ask about your papers: findings, methods, limitations…"
                         aria-label="Message"
                         rows={1}
-                        className="block max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[15px] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:!outline-none"
+                        className="block max-h-[200px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[0.9375rem] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] focus:!outline-none"
                       />
                       <div className="flex items-center justify-between px-2.5 pb-2.5">
                         <label
@@ -1030,7 +1030,7 @@ export default function PaperChatPage() {
                             className="mt-0.5 shrink-0 text-[var(--accent)]"
                           />
                           <span
-                            className="line-clamp-3 text-[13px] font-medium leading-snug"
+                            className="line-clamp-3 text-[0.8125rem] font-medium leading-snug"
                             title={doc.filename}
                           >
                             {doc.filename}

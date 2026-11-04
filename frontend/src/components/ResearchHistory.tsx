@@ -60,7 +60,7 @@ export default function ResearchHistory() {
           onKeyDown={(e) => e.key === "Enter" && searchHistory()}
           placeholder="Search past findings, e.g. “limitations of the sample size”"
           aria-label="Search past results"
-          className="field !py-2.5 !text-[15px]"
+          className="field !py-2.5 !text-[0.9375rem]"
         />
         <button
           onClick={searchHistory}

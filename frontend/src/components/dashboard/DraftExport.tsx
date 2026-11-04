@@ -41,7 +41,7 @@ export default function DraftExport({ dashboardId, draftId, title, flushSave, no
         <button className="btn btn-secondary !justify-start !py-2 !text-xs" onClick={() => run("html")} disabled={!!busy}><Globe size={13} /> Download web page (.html, print to PDF)</button>
         <button className="btn btn-secondary !justify-start !py-2 !text-xs" onClick={() => run("copy")} disabled={!!busy}><Copy size={13} /> Copy as Markdown</button>
       </div>
-      <p className="flex items-start gap-1.5 text-[11px] text-[var(--muted)]"><Download size={12} className="mt-0.5 shrink-0" /> References show file names, because PDFs do not reliably carry author and year. Add formal citations in your word processor from these pages.</p>
+      <p className="flex items-start gap-1.5 text-[0.75rem] text-[var(--muted)]"><Download size={12} className="mt-0.5 shrink-0" /> References show file names, because PDFs do not reliably carry author and year. Add formal citations in your word processor from these pages.</p>
     </div>
   );
 }

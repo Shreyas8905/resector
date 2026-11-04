@@ -27,7 +27,7 @@ export function ToolLayout({
         <div className="mt-1 text-[var(--accent)]">{icon}</div>
         <div>
           <h2 className="font-serif text-[1.75rem] font-semibold leading-tight tracking-tight">{title}</h2>
-          <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">{description}</p>
+          <p className="mt-1.5 max-w-xl text-[0.9375rem] leading-relaxed text-[var(--muted)]">{description}</p>
         </div>
       </div>
       {children}
@@ -57,7 +57,7 @@ export function ToolInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="field h-44 resize-y !p-4 !text-[15px] leading-relaxed"
+        className="field h-44 resize-y !p-4 !text-[0.9375rem] leading-relaxed"
       />
     </div>
   );
