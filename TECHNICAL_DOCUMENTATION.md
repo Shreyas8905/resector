@@ -1,128 +1,199 @@
-# ReSector: technical documentation
+# ReSector technical documentation
+This document describes the implementation currently in the repository. See
+[SETUP.md](./SETUP.md) for installation and [README.md](./README.md) for the
+user-facing overview.
 
-Audience: contributors and anyone evaluating how ReSector works. For installation see [SETUP.md](./SETUP.md); for the product overview see [README.md](./README.md).
-
-## 1. Architecture
+## 1. Runtime architecture
 
 ![Architecture Diagram](arch.png)
 
-ReSector is a local-first application. The UI talks to a FastAPI backend over HTTP; the backend owns the relational store (SQLite), the vector index (ChromaDB) and the uploaded files, and calls the user's chosen LLM provider with the user's own API key.
-
-| Layer | Technology |
-| :-- | :-- |
-| Frontend | Next.js 16, React, Tailwind, React Flow (canvas), PDF.js (reader) |
-| Backend | FastAPI, SQLAlchemy 2, Pydantic |
-| Relational data | SQLite (`foreign_keys` ON, autoincrement ids) |
-| Vector index | ChromaDB, embedded `PersistentClient` by default; optional HTTP server (`CHROMA_MODE=http`) |
-| Embeddings | `all-MiniLM-L6-v2` (ONNX), bundled with the repo/app |
-| PDF processing | PyMuPDF: text, page geometry, figure crops |
-| Agents | LangChain + LangGraph `create_react_agent` behind a provider factory |
-| Providers | Groq, OpenAI, Anthropic, Google Gemini |
-| Desktop | Tauri v2 shell + PyInstaller-frozen backend sidecar |
-
-Deployment shapes:
-
-1. **Desktop**: Tauri starts the frozen backend on `127.0.0.1:47821`, which also serves the statically exported frontend (single origin, no CORS).
-2. **Docker**: `chroma` + `backend` + `frontend` containers; data in named volumes.
-3. **Dev**: `uvicorn` + `next dev`, embedded Chroma, data in `user_data/`.
-
-## 2. Repository layout
-
-```
-backend/
-  main.py                 app, CORS, chat/upload/tools routes, static frontend mount (desktop)
-  database.py             SQLAlchemy models
-  config.py               settings and env vars
-  provider_factory.py     provider abstraction
-  dashboards.py           dashboard CRUD, canvas save, documents, excerpts, comments, export
-  dashboards_ai.py        grounded ask / summarize / compare / locate / estimate / usage
-  dashboards_wire.py      connection-agent and gap-check runs, suggestions
-  dashboards_drafts.py    drafts, versions, source suggestions, autopilot, draft checker, exports
-  tools.py                Sifter, Critique, Jargon logic
-  services/
-    rag_agent.py          ReAct agent for Paper Chat
-    grounding.py          numbered passages, citation normalisation
-    dashboard_ai.py       prompts and answer assembly for dashboards
-    wiring.py, wire_ai.py pair selection, evidence checks, agent runs
-    drafts.py, draft_ai.py  citation markers, sentence splitting, checker, autopilot, exports
-    token_budget.py       per-provider limits, trimming, retry helpers
-    pdf_processor.py      chunking and indexing
-    figure_*.py, vision*.py  figure extraction and vision analysis
-    graph_service.py      citation graph
-    dashboard_export.py   Markdown export
-frontend/src/
-  app/                    page.tsx (shell, tools), paper-chat/
-  components/             tools, settings, dialogs
-  components/dashboard/   Canvas, nodes, PdfReader, AskPanel, ConnectionsPanel, MatrixView, ...
-  lib/                    API clients, citation and rectangle helpers
-desktop/
-  src-tauri/              Rust shell, updater, capabilities, tauri.conf.json
-  sidecar/                PyInstaller entry and spec
-  scripts/                build_backend, build-frontend, bump_version, make_latest_json
+```text
+Tauri 2 shell
+  -> PyInstaller resector-backend sidecar
+      -> FastAPI application
+          -> exported Next.js UI (desktop) or separate Next.js dev server
+          -> SQLite + ChromaDB + local documents
+          -> optional LLM, Tavily, and scholarly services
 ```
 
-## 3. Data model
+| Layer | Implementation |
+|---|---|
+| UI | Next.js 16, React 19, Tailwind 4, React Flow, PDF.js, React Markdown |
+| API | FastAPI, Pydantic, SQLAlchemy 2 |
+| Relational store | SQLite by default; WAL, foreign keys, busy timeout |
+| Vector store | ChromaDB embedded `PersistentClient`, or HTTP mode |
+| Embeddings | bundled/downloaded `all-MiniLM-L6-v2` |
+| PDF/figures | PyMuPDF extraction, page geometry, crops, optional vision |
+| Agents | LangChain/LangGraph provider adapters and bounded tool calls |
+| Desktop | Tauri 2, Rust lifecycle, PyInstaller sidecar, updater |
 
-SQLite tables (SQLAlchemy). Schema changes must be **additive** (new tables only) because there is no migration mechanism yet.
+Desktop uses one origin: the sidecar serves the exported UI and API. Web and
+Docker use `NEXT_PUBLIC_API_URL` to point the browser at the backend and use
+explicit `ALLOWED_ORIGINS` CORS settings.
 
-- Chat side: user sessions, messages, documents (with processing progress and status), figure records.
-- Dashboard side: `Dashboard`, `CanvasNode`, `CanvasEdge`, `Excerpt`, `CanvasComment`, `AiUsage`, `WireSuggestion`, `AgentRun`, `Draft`, `DraftVersion`.
+## 2. Request and startup flow
 
-Each dashboard owns a hidden chat session (ids prefixed `dash_`, filtered from the normal session list), so uploads, chunking, Chroma collections and figure extraction reuse the Paper Chat pipeline unchanged.
+FastAPI startup calls `init_db()` and warms the embedding model before the
+socket is considered ready. The desktop shell:
 
-The canvas is saved by a debounced `PUT /dashboards/{id}/canvas` that replaces all nodes and edges (validated server-side). An *excerpt* stores paper, page, normalised rectangles, the quote and a prefix/suffix for re-location. Area excerpts have a cropped PNG served on demand.
+1. Shows `desktop/splash/index.html`.
+2. Tries `127.0.0.1:47821`, falling back to an OS-selected free port.
+3. Starts the sidecar with `RESECTOR_PORT`, `DATA_DIR`, and `FRONTEND_DIR`.
+4. Waits for the backend socket, including embedding warm-up.
+5. Navigates the webview to `http://127.0.0.1:<port>/`.
+6. Kills the sidecar on exit.
 
-## 4. Retrieval and grounding
+`RESECTOR_DEV_URL` skips sidecar startup and navigates to a developer-provided
+frontend URL. The updater checks the configured GitHub `latest.json`, reports
+progress through the `resector-update` DOM event/Tauri commands, stops the
+backend before installation, and relaunches.
 
-1. PDFs are parsed per page, chunked and embedded into a per-session Chroma collection; chunk metadata keeps page numbers.
-2. For Ask, the backend retrieves the top passages (restricted to the selected papers or excerpts when specified) and presents them to the model as **numbered passages**.
-3. The model must cite with `[n]` (or `[p.N]` for page-level). `normalize_citations` removes any number that does not exist, so invented sources cannot reach the UI.
-4. Each citation is resolved to paper, page and quote; where rectangles are missing they are found by searching the page text (`find_page`, `search_for`). The frontend renders citations as clickable chips that open the reader and highlight the rectangles.
-5. Paper Chat uses a ReAct agent with tools for local retrieval, figure lookup and optional Tavily web search.
+## 3. Backend route groups
 
-## 5. Connection agent and gap check
+### Core tools, chat, archive, and graph (`backend/main.py`)
 
-- Candidate pairs (paper-paper, paper-claim) are generated, then each pair is checked by the model, which must return a relation (`supports`, `contradicts`, `extends`, `method`), a summary, a confidence and **quotes from both sides**. Suggestions without evidence from both are discarded.
-- Results are stored as `WireSuggestion` rows with status `pending | accepted | dismissed | none`. `none` rows are kept so pairs are not paid for twice.
-- Pending suggestions render as ghost edges derived at view time (not saved in canvas state). Accepting creates a real edge; the accepted suggestion is matched to its edge by the two endpoint cards.
-- Runs execute as asyncio tasks with a registry, progress counters, token totals and cancellation (`AgentRun`). The gap check reports `supported | partly | contradicted | not_covered` per claim with citations and a suggested search.
+- `POST /validate-key`, `POST /validate-tavily`, `GET /health`
+- `POST /process/sifter`, `/process/critique`, `/process/jargon`
+- `POST /process/{tool}/upload` for PDF/TXT/Markdown analysis
+- `GET /search` for semantic research-history search
+- `POST /chat/sessions`, `GET /chat/sessions`
+- `POST /chat/upload`, `GET /chat/tasks/{task_id}`
+- `POST /chat/message`
+- `GET /chat/sessions/{id}/messages`
+- `DELETE /chat/sessions/{id}`, `/chat/sessions/{id}/messages`,
+  `/chat/messages/{id}`, `/chat/documents/{id}`
+- `GET /chat/documents/{session_id}`, figure image/status endpoints
+- `POST /api/graph/generate`, `GET /api/graph/session/{id}`,
+  `DELETE /api/graph/session`
 
-## 5b. Drafts, the checker and autopilot
+Uploads are stored under `DATA_DIR/uploads`. Text indexing and figure analysis
+are separate background jobs so a vision failure does not invalidate text
+retrieval. Task status aggregates document progress.
 
-- A draft is Markdown with citation markers: `[@e12]` (a saved excerpt, exact position), `[@d5:p3]` (page 3 of paper 5), `[@d5]` (paper 5). Markers are resolved at view and export time, so renaming or deleting a paper cannot silently corrupt text; a marker whose source is gone is hidden in the preview and listed as missing on export.
-- **Cite while writing**: `POST /drafts/suggest` ranks saved excerpts by word overlap and adds vector-search passages. It makes no model call and costs no tokens.
-- **Checker** (`AgentRun` kind `check`, result stored as JSON with a content hash): sentences are split in code (headings, code, tables skipped; "et al.", "Fig." and similar are not sentence ends). Cited sentences are checked against the cited source text (the excerpt, or the best window of the cited page); uncited sentences that read like factual claims are checked against the two best retrieved passages. Up to 24 sentences are checked, three per model call. Verdicts are `supported | partial | unsupported | contradicted`; an uncited sentence with a supporting passage gets a one-click "Add this citation". The draft is never changed by the checker.
-- **Autopilot**: `outline` plans sections from claims, drawn links and paper names; `section` writes one section from numbered passages (saved quotes first), converts `[n]` to markers (`to_markers`, which drops invented numbers), and ends with a `TODO:` line when the papers do not cover the goal. The UI writes sections one at a time, stops on the first error, and applies results only after review, saving the previous text as a version first.
-- **Versions**: automatic snapshots (at most one per 10 minutes and only for real edits), manual saves, and restore points taken before autopilot or a restore; at most 60 are kept, oldest automatic ones pruned first.
-- **Export**: citations are numbered by first use and a References list is added (paper, page, optional quote). Formats: Markdown and print-ready HTML. References use file names because PDFs do not reliably carry bibliographic metadata.
+### Dashboards (`backend/dashboards.py`)
 
-## 6. Token budgets and provider limits
+Dashboard CRUD is exposed at `/dashboards`. A dashboard creates a hidden
+`UserSession` with a `dash_` prefix so it can reuse upload, indexing, figures,
+and chat infrastructure. Other routes provide:
 
-`services/token_budget.py` keeps every call inside the provider's per-request limit:
+- replace-all validated canvas saves;
+- dashboard papers and library import;
+- paper file access;
+- text/area excerpts and excerpt images;
+- comments and resolution;
+- Markdown export.
 
-- Per-model limits (conservative guesses for free tiers) are corrected by values learned from provider error text.
-- `fit_messages` trims in order: tool output, old history, the newest tool result, and only last the question.
-- A 413 triggers shrink-and-retry; a 429 waits for the provider's "try again in" time.
-- Agent tools are call-limited and a `GraphRecursionError` falls back to answering from what was gathered.
-- Dashboard actions record usage in `AiUsage` and offer pre-run estimates.
+### Grounded dashboard AI (`backend/dashboards_ai.py`)
 
-## 7. Desktop shell and updater
+`/dashboards/{id}/ask` retrieves only the requested papers, excerpts, and
+optional draft context, then returns an answer plus resolved citations and
+usage. Other actions are summarize, compare-row, locate, estimate, chat
+history/clear, and usage totals. Provider errors, rate limits, and oversized
+requests are converted to explicit HTTP errors.
 
-- Rust (`src-tauri/src/main.rs`) starts the sidecar, waits for `/health`, then shows the app window; a splash page shows startup or errors. Preferred port 47821; data in the OS app-data folder; logs in `logs/shell.log` and `logs/backend.log`.
-- Updater (tauri-plugin-updater): checks `latest.json` from GitHub Releases, verifies the signature against the public key in `tauri.conf.json`, downloads with progress, stops the backend (avoids Windows file locks), installs and relaunches.
-- The web UI talks to the shell through `window.__TAURI_INTERNALS__.invoke` (allowed for local origins by the capability file) and receives status through a DOM `resector-update` event. A native dialog is the fallback if the UI has not loaded.
-- Bundle: NSIS installer, passive install mode.
+### Wiring and gaps (`backend/dashboards_wire.py`)
 
-## 8. Security and privacy notes
+Wire and gap runs are asynchronous tasks tracked by `AgentRun`. The UI polls
+agent state and can cancel a run. Wire suggestions are evidence-backed
+paper-paper or claim-paper relationships with `supports`, `contradicts`,
+`extends`, or `method` relations. A suggestion must have evidence from both
+sides before it is useful; accepted links are separate from pending/dismissed
+suggestions.
 
-- API keys are stored in webview/browser storage and sent per request to the local backend, which forwards them to the provider. Keys are not written to the database. Moving them to the OS keychain is planned.
-- `backend/.env` is excluded from desktop bundles.
-- The backend binds to localhost on desktop. CORS origins are explicit (`ALLOWED_ORIGINS`) for the web build.
-- Only the text needed for a request (retrieved passages, the question, short history) is sent to the provider.
+### Drafts (`backend/dashboards_drafts.py`)
 
-## 9. Conventions
+Draft APIs support CRUD, versions, source suggestions, outline/section
+autopilot, checker runs and estimates, and Markdown/HTML export. Draft markers
+are source keys such as `[@e12]`, `[@d5:p3]`, and `[@d5]`; they resolve at
+display/export time. The checker records a content hash and reports
+`supported`, `partial`, `unsupported`, `contradicted`, or `unchecked` findings
+without changing the draft.
 
-- Beta rule: additive schema changes only.
-- AI suggestions never mutate user content without an explicit accept.
-- UI uses shared CSS variables and classes (`.btn`, `.field`, `.prose`, ...) and the `useDialogs()` hook for confirms and notices.
-- Resizable panels share `usePanelWidth` / `ResizeHandle`; their widths and the dashboard hide/focus preferences persist in `localStorage`.
+## 4. Data model
+
+`backend/database.py` uses additive SQLAlchemy tables:
+
+- `user_sessions`, `research_logs`, `chat_messages`, `documents`
+- `graph_snapshots`, `figures`
+- `dashboards`, `canvas_nodes`, `canvas_edges`, `excerpts`,
+  `canvas_comments`
+- `ai_usage`, `wire_suggestions`, `agent_runs`
+- `drafts`, `draft_versions`
+
+Documents belong to a session and carry processing status/progress. Dashboard
+papers are documents in the dashboard's hidden session. Canvas nodes support
+paper, excerpt, note, claim, and frame data; edges store endpoint and relation
+metadata. Excerpts store 1-based page numbers, normalized rectangles, quote,
+context, and optional crop paths.
+
+Deletion must clean relational rows, local files, figure/excerpt assets, and
+Chroma entries. SQLite foreign keys and dashboard cleanup are enabled, but
+there is no schema migration framework.
+
+## 5. Retrieval, citations, and figures
+
+PDF pages are extracted and chunked by `services/pdf_processor.py`, embedded
+into a session-scoped Chroma collection, and tagged with document/session/page
+metadata. Dashboard retrieval builds numbered passages from the selected
+scope. Citation normalisation rejects numbers not present in the supplied
+passage set, then resolves page and rectangle coordinates for clickable PDF
+navigation.
+
+Paper Chat uses a LangGraph ReAct agent with local retrieval, figure lookup,
+and optional Tavily search. Figure jobs extract captions/crops and can call a
+vision model; figure markers are finalized against the current session before
+being returned.
+
+Graph generation delegates scholarly resolution/traversal to
+`services/graph_service.py`, stores snapshots as JSON, and computes network
+relationships and layouts for the frontend. The graph caps requested nodes to
+200 at the API boundary.
+
+## 6. AI budgets and provider behavior
+
+`services/token_budget.py` maintains conservative provider/model budgets,
+trims oversized messages in a defined order, interprets provider limit errors,
+and supports shrink/retry behavior. Tool processing also has configurable
+character budgets and a maximum-part guard. Dashboard actions record input and
+output token counts in `ai_usage`; estimates are available before expensive
+actions.
+
+Provider keys are supplied in request bodies or multipart fields and are not
+stored in SQLite. The optional Tavily key can come from the request or
+`TAVILY_API_KEY`. `CHROMA_MODE=embedded` is the default; Docker sets HTTP mode
+against its `chroma` service.
+
+## 7. Frontend composition
+
+`frontend/src/app/page.tsx` owns the navigation rail and full-bleed layout.
+The primary tools are dashboards, paper chat, and related-paper graph; helper
+tools are sifter, critique, jargon, and history. `CommandPalette` handles
+Ctrl/Cmd+K navigation. Appearance preferences and rail/panel preferences use
+guarded local storage.
+
+Dashboard components use `dashboardApi` for typed requests and compose:
+`DashboardsTool`, `Canvas`, `PdfReader`, `AskPanel`, `ConnectionsPanel`,
+`MatrixView`, draft views, source panels, comments, and export. Citation links
+open the relevant page/rectangle in the PDF reader. The static desktop build
+sets `DESKTOP_BUILD=1`, enabling Next export and unoptimized images.
+
+## 8. Security, privacy, and operational limits
+
+- The desktop backend is localhost-only; web CORS is explicit.
+- Upload names are reduced to basenames and files receive UUID prefixes.
+- Health output masks database passwords.
+- API keys live in webview/browser storage and are forwarded only to the
+  selected provider; OS keychain storage is not implemented.
+- Local documents, SQLite, Chroma, figures, excerpts, and logs are not
+  synchronized by ReSector.
+- External AI/search/scholarly calls may receive the selected question and
+  retrieved document passages. Users must review provider policies.
+- Unsigned installers may trigger OS security warnings. First launch can be
+  slow while embeddings initialize.
+
+## 9. Development conventions
+
+Use the existing helpers and types, keep user-visible errors explicit, avoid
+unrelated formatting changes, and keep docs synchronized with packaging and
+runtime behavior. Validate frontend changes with lint/type-check/build as
+appropriate; validate backend changes with focused tests or import checks.
